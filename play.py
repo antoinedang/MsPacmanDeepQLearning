@@ -1,5 +1,5 @@
 import gym
-from agent import RLAgent
+from agent import *
 import warnings
 import cv2
 from utils import *
@@ -14,7 +14,8 @@ if __name__ == '__main__':
     agent.p_random_action = 0.0
     agent.explore_unseen_states = False
 
-    env.reset()
+    seed = 0
+    env.reset(seed=seed)
     total_reward = 0
     state = None
     

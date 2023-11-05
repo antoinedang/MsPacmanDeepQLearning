@@ -1,8 +1,6 @@
 from itertools import permutations
-import numpy as np
 import cv2
 import pickle
-import copy
 import math
 
 ### FOR VISUALIZATION/DEBUGGING
@@ -25,36 +23,60 @@ def appendToFile(text, filename):
         f.write(text + '\n')
 
 ### FOR THE ACTUAL AGENT
-        
+
+def shortest_angular_distance(angle1, angle2):
+    # Calculate the angular difference
+    angular_difference = angle2 - angle1
+
+    # Ensure the result is within the range of -π to π
+    while angular_difference > math.pi:
+        angular_difference -= 2 * math.pi
+    while angular_difference < -math.pi:
+        angular_difference += 2 * math.pi
+
+    return abs(angular_difference)
+
 ghost_coordinates_combos = list(permutations([0,1,2,3]))
 def stateDistance(state1, state2):
+    pacman_dist_weight = 0.5
+    ghost_dist_weight = 0.125/math.pi
+    
     # euler distance between pacman coordinates
-    ghost_coordinates_x = [state1[0], state1[1], state1[2], state1[3]]
-    ghost_coordinates_y = [state1[4], state1[5], state1[6], state1[7]]
+    pacman_dist = math.sqrt((state1[8] - state2[8])**2 + (state1[9] - state2[9])**2)
+    # angle distance between ghosts
     
-    pacman_dist_weight = 1
-    ghost_dist_weight = 0.25
+    # ghost_angle1 = shortest_angular_distance(math.atan2(state1[4], state1[0]),math.atan2(state2[4], state2[0]))
+    # ghost_angle2 = shortest_angular_distance(math.atan2(state1[5], state1[1]),math.atan2(state2[5], state2[1]))
+    # ghost_angle3 = shortest_angular_distance(math.atan2(state1[6], state1[2]),math.atan2(state2[6], state2[2]))
+    # ghost_angle4 = shortest_angular_distance(math.atan2(state1[7], state1[3]),math.atan2(state2[7], state2[3]))
+    # ghost_angle_dist = ghost_angle1+ghost_angle2+ghost_angle3+ghost_angle4
     
-    pacman_dist = (state1[8] - state2[8])**2 + (state1[9] - state2[9])**2
-    min_ghost_dist = 100000000
+    ghost1_angle_1 = math.atan2(state1[4], state1[0])
+    ghost2_angle_1 = math.atan2(state1[5], state1[1])
+    ghost3_angle_1 = math.atan2(state1[6], state1[2])
+    ghost4_angle_1 = math.atan2(state1[7], state1[3])
     
-    for ghost_coordinates_combo in ghost_coordinates_combos:
-        for i in ghost_coordinates_combo:
-            state1[i] = ghost_coordinates_x[i]
-            state1[i+4] = ghost_coordinates_y[i]
-        ghost_1_dist = (state1[0] - state2[0])**2 + (state1[4] - state2[4])**2
-        ghost_2_dist = (state1[1] - state2[1])**2 + (state1[5] - state2[5])**2
-        ghost_3_dist = (state1[2] - state2[2])**2 + (state1[6] - state2[6])**2
-        ghost_4_dist = (state1[3] - state2[3])**2 + (state1[7] - state2[7])**2
-        ghost_dist = ghost_1_dist + ghost_2_dist + ghost_3_dist + ghost_4_dist
-        min_ghost_dist = min(ghost_dist, min_ghost_dist)
-    # smallest angle difference between pairs enemy coordinates
-    # smallest euler distance between pairs of enemy coordinates
-    return ghost_dist_weight*min_ghost_dist + pacman_dist_weight*pacman_dist
+    ghost1_angle_2 = math.atan2(state2[4], state2[0])
+    ghost2_angle_2 = math.atan2(state2[5], state2[1])
+    ghost3_angle_2 = math.atan2(state2[6], state2[2])
+    ghost4_angle_2 = math.atan2(state2[7], state2[3])
     
+    ghost_angles_1 = [ghost1_angle_1,ghost2_angle_1,ghost3_angle_1,ghost4_angle_1]
+    ghost_angle_dist = 99999999
+    for ghost_coord_combo in ghost_coordinates_combos:
+        ghost_angle_diff_1 = shortest_angular_distance(ghost1_angle_2, ghost_angles_1[ghost_coord_combo[0]])
+        ghost_angle_diff_2 = shortest_angular_distance(ghost2_angle_2, ghost_angles_1[ghost_coord_combo[1]])
+        ghost_angle_diff_3 = shortest_angular_distance(ghost3_angle_2, ghost_angles_1[ghost_coord_combo[2]])
+        ghost_angle_diff_4 = shortest_angular_distance(ghost4_angle_2, ghost_angles_1[ghost_coord_combo[3]])
+
+        ghost_angle_dist = min(ghost_angle_dist, ghost_angle_diff_1+ghost_angle_diff_2+ghost_angle_diff_3+ghost_angle_diff_4)
+
+    return ghost_dist_weight*ghost_angle_dist + pacman_dist_weight*pacman_dist
+
 dot_coordinates = loadFromPickle("data/dot_coordinates.pkl")
     
 def buildStateFromRAM(ram):
+    ram = [int(r) for r in ram]
     enemy_sue_x = ram[6]
     enemy_inky_x = ram[7]
     enemy_pinky_x = ram[8]
@@ -65,25 +87,32 @@ def buildStateFromRAM(ram):
     enemy_blinky_y = ram[15]
     player_x = ram[10]
     player_y = ram[16]
+    
     # fruit_x = ram[11]
     # fruit_y = ram[17]
     
-    return [enemy_sue_x,enemy_inky_x,enemy_pinky_x,enemy_blinky_x,enemy_sue_y,enemy_inky_y,enemy_pinky_y,enemy_blinky_y,player_x,player_y]
+    return [enemy_sue_x-player_x,enemy_inky_x-player_x,enemy_pinky_x-player_x,enemy_blinky_x-player_x,enemy_sue_y-player_y,enemy_inky_y-player_y,enemy_pinky_y-player_y,enemy_blinky_y-player_y,player_x,player_y]
         
         
 def reward_fn(obs, next_obs, reward):    
     past_num_lives = obs[123]
     next_num_lives = next_obs[123]
     
-    past_pacman_x = obs[10]
-    next_pacman_x = next_obs[10]
-    past_pacman_y = obs[16]
-    next_pacman_y = next_obs[16]
+    if reward >= 70: reward = 0
+    if reward >= 170: reward = -100
+    if next_num_lives < past_num_lives: reward -= 500
     
-    if reward >= 200: reward = -100
     
-    if past_pacman_x == next_pacman_x and past_pacman_y == next_pacman_y:
-        reward += -5
+    
+    # past_pacman_x = obs[10]
+    # next_pacman_x = next_obs[10]
+    # past_pacman_y = obs[16]
+    # next_pacman_y = next_obs[16]
+    
+    # if past_pacman_x == next_pacman_x and past_pacman_y == next_pacman_y:
+    #     reward = 0
+    obs = [int(o) for o in obs]
+    next_obs = [int(o) for o in next_obs]
     
     ghost_1_dist = math.sqrt((obs[10] - obs[6])**2 + (obs[16] - obs[12])**2)
     ghost_2_dist = math.sqrt((obs[10] - obs[7])**2 + (obs[16] - obs[13])**2)
@@ -97,11 +126,9 @@ def reward_fn(obs, next_obs, reward):
     ghost_4_dist = math.sqrt((next_obs[10] - next_obs[9])**2 + (next_obs[16] - next_obs[15])**2)
     new_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
     
-    reward += new_min_ghost_dist - old_min_ghost_dist
-        
-    if next_num_lives < past_num_lives:
-        reward -= 100
-        
+    reward += 1 # reward being alive
+    if abs(new_min_ghost_dist - old_min_ghost_dist) < 50:
+        reward += (new_min_ghost_dist - old_min_ghost_dist)
     return reward    
 
 

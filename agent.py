@@ -25,15 +25,17 @@ class RLAgent(nn.Module):
         self.model =  nn.Sequential(*layers)  
         self.model.to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.005)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
         
         self.input_size = input_size
         self.p_random_action = p_random_action
         self.games_played = 0
         self.observed_state_actions = {}
         self.explore_unseen_states = explore_unseen_states
-        self.threshold_close_state = 20
-        self.max_cached_states = 100
+        self.threshold_close_state = 10
+        self.max_cached_states = 60
+        self.time_between_state_caching = 60
+        self.time_since_last_state_cache = self.time_between_state_caching
         
     def getAction(self, state):
         #RANDOM ACTION
@@ -41,62 +43,69 @@ class RLAgent(nn.Module):
             return random.randint(1,4), 30
         #NORMAL ACTION
         action_rewards = [-99999999,0,0,0,0]
-        for action in [1.0,2.0,3.0,4.0]:
-            state_tensor = torch.tensor(state)
-            action_tensor = torch.tensor([action])
+        for action in [1,2,3,4]:
+            state_tensor = torch.tensor(state, dtype=torch.float32)
+            action_tensor = torch.tensor([float(action-2)], dtype=torch.float32)
             input_tensor = torch.cat((state_tensor, action_tensor), dim=0).to(self.device)
             expected_reward = float(self.model(input_tensor).cpu()[0])
             #WEIGHT ACTION REWARDS BASED ON UNSEEN STATES
             if self.explore_unseen_states:
                 try:
-                    closest_seen_state_dist = min([stateDistance(s,state) for s in self.observed_state_actions[int(action)]])
+                    closest_seen_state_dist = min([stateDistance(s,state) for s in self.observed_state_actions[action]])
                     closest_seen_state_dist = 1 if closest_seen_state_dist < self.threshold_close_state else closest_seen_state_dist
-                    action_rewards[int(action)] = expected_reward + 10000000 * (1.0 - (1/closest_seen_state_dist))
+                    action_rewards[action] = expected_reward * (1/closest_seen_state_dist) + 10000000 * (1.0 - (1/closest_seen_state_dist))
                 except:
-                    action_rewards[int(action)] = expected_reward
+                    action_rewards[action] = expected_reward
             else:
-                action_rewards[int(action)] = expected_reward
+                action_rewards[action] = expected_reward
         max_q_action = max(action_rewards)
         return action_rewards.index(max_q_action), 0
-
-    def update(self, state, action, reward):
-        if self.explore_unseen_states:
-            try:
-                self.observed_state_actions[action].append(state)
-                if len(self.observed_state_actions[action]) > self.max_cached_states:
-                    self.observed_state_actions[action].remove(random.randint(0,len(self.observed_state_actions[action])))
-            except:
-                self.observed_state_actions[action] = []
-                self.observed_state_actions[action].append(state)
+    
+    def update(self, state, action, reward):        
+        ## NORMALIZE STATE AND ACTION DATA
+        state_copy = copy.deepcopy(state)
+        
+        
+        batch = torch.zeros((2*len(ghost_coordinates_combos), self.input_size))
         
         ## ADD ALL COMBINATIONS OF SYMMETRY
-        map_width = 2*88
-        for i in range(2):
-            state[0] = map_width - state[0]
-            state[1] = map_width - state[1]
-            state[2] = map_width - state[2]
-            state[3] = map_width - state[3]
-            state[8] = map_width - state[8]
+        for j in range(2):
+            state_copy[0] *= -1
+            state[0] *= -1
+            state_copy[1] *= -1
+            state[1] *= -1
+            state_copy[2] *= -1
+            state[2] *= -1
+            state_copy[3] *= -1
+            state[3] *= -1
+            state_copy[8] = 176 - state_copy[8]
+            state[8] = 176 - state[8]
             
-            ghost_coordinates_x = copy.deepcopy(state[0:4])
-            ghost_coordinates_y = copy.deepcopy(state[4:8])
-            
-            batch = torch.zeros((len(ghost_coordinates_combos), self.input_size))
-
-            if action == 1: action = 4
-            elif action == 2: action = 3
+            if action == 2: action = 3
             elif action == 3: action = 2
-            elif action == 4:  action = 1
+            
             action_tensor = torch.tensor([float(action)])
-            rewards = torch.tensor([float(reward)]*len(ghost_coordinates_combos)).to(self.device)
             
             for ghost_coordinates_combo in ghost_coordinates_combos:
                 for i in ghost_coordinates_combo:
-                    state[i] = ghost_coordinates_x[i]
-                    state[i+4] = ghost_coordinates_y[i]
-                state_tensor = torch.tensor(state)
-                batch[i] = torch.cat((state_tensor, action_tensor), dim=0)
-            
+                    state_copy[i] = state[i]
+                    state_copy[i+4] = state[i+4]
+                state_tensor = torch.tensor(state_copy)
+                ## CACHE SEEN STATES
+                if self.explore_unseen_states:
+                    if self.time_since_last_state_cache < self.time_between_state_caching:
+                        self.time_since_last_state_cache += 1
+                    self.time_since_last_state_cache = 0
+                    try:
+                        self.observed_state_actions[action].append(state_copy)
+                        if len(self.observed_state_actions[action]) > self.max_cached_states:
+                            self.observed_state_actions[action].remove(random.randint(0,len(self.observed_state_actions[action])))
+                    except:
+                        self.observed_state_actions[action] = []
+                        self.observed_state_actions[action].append(state_copy)
+                batch[j*len(ghost_coordinates_combos) + i] = torch.cat((state_tensor, action_tensor), dim=0)
+        
+        rewards = torch.tensor([float(reward)]*(2*len(ghost_coordinates_combos))).to(self.device)
         batch = batch.to(self.device)
         
         self.model.train()
@@ -106,3 +115,6 @@ class RLAgent(nn.Module):
         loss.backward()
         self.optimizer.step()
     
+
+def makeAgent():
+    return RLAgent(p_random_action=0.1, input_size=11, hidden_sizes=[128, 128], explore_unseen_states=True)
