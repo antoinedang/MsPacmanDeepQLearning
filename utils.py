@@ -7,7 +7,7 @@ import math
 
 ### FOR VISUALIZATION/DEBUGGING
 
-def scaleImage(image, scale=2):
+def scaleImage(image, scale=4):
     return cv2.resize(image, (0,0), fx=scale, fy=scale) 
     
 def saveImageToFile(image,filename="test_img.png"): cv2.imwrite(filename, image)
@@ -36,7 +36,6 @@ def stateDistance(state1, state2):
     ghost_dist_weight = 0.25
     
     pacman_dist = (state1[8] - state2[8])**2 + (state1[9] - state2[9])**2
-    return pacman_dist
     min_ghost_dist = 100000000
     
     for ghost_coordinates_combo in ghost_coordinates_combos:
@@ -84,8 +83,22 @@ def reward_fn(obs, next_obs, reward):
     if reward >= 200: reward = -100
     
     if past_pacman_x == next_pacman_x and past_pacman_y == next_pacman_y:
-        reward += -1
+        reward += -5
     
+    ghost_1_dist = math.sqrt((obs[10] - obs[6])**2 + (obs[16] - obs[12])**2)
+    ghost_2_dist = math.sqrt((obs[10] - obs[7])**2 + (obs[16] - obs[13])**2)
+    ghost_3_dist = math.sqrt((obs[10] - obs[8])**2 + (obs[16] - obs[14])**2)
+    ghost_4_dist = math.sqrt((obs[10] - obs[9])**2 + (obs[16] - obs[15])**2)
+    old_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
+    
+    ghost_1_dist = math.sqrt((next_obs[10] - next_obs[6])**2 + (next_obs[16] - next_obs[12])**2)
+    ghost_2_dist = math.sqrt((next_obs[10] - next_obs[7])**2 + (next_obs[16] - next_obs[13])**2)
+    ghost_3_dist = math.sqrt((next_obs[10] - next_obs[8])**2 + (next_obs[16] - next_obs[14])**2)
+    ghost_4_dist = math.sqrt((next_obs[10] - next_obs[9])**2 + (next_obs[16] - next_obs[15])**2)
+    new_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
+    
+    reward += new_min_ghost_dist - old_min_ghost_dist
+        
     if next_num_lives < past_num_lives:
         reward -= 100
         

@@ -25,7 +25,7 @@ class RLAgent(nn.Module):
         self.model =  nn.Sequential(*layers)  
         self.model.to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.005)
         
         self.input_size = input_size
         self.p_random_action = p_random_action
@@ -38,7 +38,7 @@ class RLAgent(nn.Module):
     def getAction(self, state):
         #RANDOM ACTION
         if random.random() < self.p_random_action:
-            return random.randint(1,4)
+            return random.randint(1,4), 30
         #NORMAL ACTION
         action_rewards = [-99999999,0,0,0,0]
         for action in [1.0,2.0,3.0,4.0]:
@@ -57,7 +57,7 @@ class RLAgent(nn.Module):
             else:
                 action_rewards[int(action)] = expected_reward
         max_q_action = max(action_rewards)
-        return action_rewards.index(max_q_action)
+        return action_rewards.index(max_q_action), 0
 
     def update(self, state, action, reward):
         if self.explore_unseen_states:
@@ -82,6 +82,11 @@ class RLAgent(nn.Module):
             ghost_coordinates_y = copy.deepcopy(state[4:8])
             
             batch = torch.zeros((len(ghost_coordinates_combos), self.input_size))
+
+            if action == 1: action = 4
+            elif action == 2: action = 3
+            elif action == 3: action = 2
+            elif action == 4:  action = 1
             action_tensor = torch.tensor([float(action)])
             rewards = torch.tensor([float(reward)]*len(ghost_coordinates_combos)).to(self.device)
             
