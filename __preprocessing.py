@@ -11,8 +11,7 @@ def analyzeStateSpace(filename):
     with open(filename, "r") as f:
         for line in f.readlines():
             pacman_x, pacman_y, reward = line[:-1].split(",")
-            if int(pacman_x) % 2 == 0 and int(pacman_y) % 2 == 0:
-                possible_coordinates.append((int(pacman_x), int(pacman_y)))
+            possible_coordinates.append((int(pacman_x), int(pacman_y)))
             if reward not in ["0.0", "10.0", "50.0"]: print("Not sure about {} {} : worth {} points".format(pacman_x, pacman_y, reward))
             else:
                 reward = float(reward)
@@ -40,10 +39,31 @@ def analyzeStateSpace(filename):
     saveToPickle("data/state_space.pkl", list(possible_coordinates))
     
     cv2.imshow('',test_img)
-    saveImageToFile(test_img,filename="possible_coords_img.png")
+    saveImageToFile(test_img,filename="data/possible_coords_img.png")
     cv2.waitKey(0)
 
+def generateDotCoordinates(img_filename):
+    dot_coords_img = cv2.imread(img_filename)
+    
+    dot_coords = []
+    
+    for y in range(len(dot_coords_img)):
+        for x in range(len(dot_coords_img[0])):
+            if sum(dot_coords_img[y][x]) != 0:
+                dot_coords.append((x,y))
+    
+    saveToPickle("data/dot_coordinates.pkl", list(set(dot_coords)))
+    
+
 if __name__ == '__main__':
+    
+    ## UNCOMMENT THIS TO CREATE A PICKLE OF ALL DOT COORDINATES FROM AN IMAGE
+    
+    # generateDotCoordinates("data/dot_coords.png")    
+    
+    ## UNCOMMENT BELOW TO GENERATE ALL POSSIBLE COORDINATES
+    
+    # exit()
     
     while True:
     
@@ -57,7 +77,7 @@ if __name__ == '__main__':
         
         while True:
             game_img = env.render()
-            saveImageToFile(game_img,filename="game_img.png")
+            saveImageToFile(game_img,filename="data/game_img.png")
             cv2.imshow('',scaleImage(game_img))
             cv2.waitKey(1)
             if keyboard.is_pressed('left'):

@@ -10,10 +10,9 @@ warnings.filterwarnings("ignore")
 if __name__ == '__main__':
     env = gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
     
-    agent_checkpoint = "latest.pt"
-    agent = RLAgent(p_random_action=0, checkpoint_file=agent_checkpoint)
+    agent = loadFromPickle("data/agent.pkl")
 
-    obs = env.reset()
+    env.reset()
     total_reward = 0
     state = None
     
@@ -21,9 +20,9 @@ if __name__ == '__main__':
         cv2.imshow('',scaleImage(env.render()))
         cv2.waitKey(1)
         
-        state = buildStateFromRAM(obs, state)
+        state = buildStateFromRAM(env.unwrapped.ale.getRAM())
         action = agent.getAction(state)
-        obs, reward, done, _, info = env.step(action)
+        _, reward, done, _, info = env.step(action)
         total_reward += reward
         
         if done:
