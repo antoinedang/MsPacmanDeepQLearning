@@ -25,7 +25,7 @@ class RLAgent(nn.Module):
         self.model =  nn.Sequential(*layers)  
         self.model.to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
         
         self.input_size = input_size
         self.games_played = 0
@@ -36,7 +36,7 @@ class RLAgent(nn.Module):
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
         self.max_cached_states_per_action = 100
-        self.time_between_state_caching = 30
+        self.time_between_state_caching = 15
         self.time_since_last_state_cache = self.time_between_state_caching
         
     def getAction(self, state):
@@ -70,7 +70,7 @@ class RLAgent(nn.Module):
         rewards = torch.zeros((num_states_in_buffer, 1))
         num_states_added_to_batch = 0
         for action in [1,2,3,4]:
-            for state, reward in self.observed_state_actions[action]:
+            for state, reward in self.observed_state_actions.get(action, []):
                 state_tensor = torch.tensor(state)
                 action_tensor = torch.tensor([0,0,0,0])
                 action_tensor[action-1] = 1.0
@@ -93,6 +93,11 @@ class RLAgent(nn.Module):
     def update(self, state, action, reward):        
         ## NORMALIZE STATE AND ACTION DATA
         state_copy = copy.deepcopy(state)
+        if self.time_since_last_state_cache < self.time_between_state_caching and abs(reward) < 50: # don't skip caches on very heavily penalized states
+            self.time_since_last_state_cache += 1
+            self.trainIteration()
+            return
+        self.time_since_last_state_cache = 0
         ## ADD ALL COMBINATIONS OF SYMMETRY
         for _ in range(2):
             state_copy[0] *= -1
@@ -117,18 +122,15 @@ class RLAgent(nn.Module):
                     state_copy[i] = state[i]
                     state_copy[i+4] = state[i+4]
                 ## CACHE SEEN STATES
-                if self.time_since_last_state_cache < self.time_between_state_caching:
-                    self.time_since_last_state_cache += 1
-                self.time_since_last_state_cache = 0
                 try:
                     self.observed_state_actions[action].append((state_copy, reward))
-                    if len(self.observed_state_actions[action]) > self.max_cached_states:
-                        self.observed_state_actions[action].remove(0)
+                    if len(self.observed_state_actions[action]) > self.max_cached_states_per_action:
+                        self.observed_state_actions[action].pop(0)
                 except:
                     self.observed_state_actions[action] = []
                     self.observed_state_actions[action].append((state_copy, reward))
         
-        self.train()
+        self.trainIteration()
     
 
 def makeAgent():
