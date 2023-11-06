@@ -21,7 +21,19 @@ def loadFromPickle(filename):
 def appendToFile(text, filename):
     with open(filename, 'a') as f:
         f.write(text + '\n')
-
+        
+def loadBoolFromFile(filename):
+    with open(filename, 'r+') as f:
+        renderTrain, renderEval, renderRecording = f.readlines()[0].split(",")
+        if renderEval == "True": renderEval = True
+        else: renderEval = False
+        if renderTrain == "True": renderTrain = True
+        else: renderTrain = False
+        if renderRecording == "True": renderRecording = True
+        else: renderRecording = False
+    return renderTrain, renderEval, renderRecording
+  
+ 
 ### FOR THE ACTUAL AGENT
 
 def shortest_angular_distance(angle1, angle2):
@@ -95,24 +107,19 @@ def buildStateFromRAM(ram):
         
         
 def reward_fn(obs, next_obs, reward):    
+    obs = [int(o) for o in obs]
+    next_obs = [int(o) for o in next_obs]
+    
     past_num_lives = obs[123]
     next_num_lives = next_obs[123]
     
-    if reward >= 70: reward = 0
-    if reward >= 170: reward = -100
-    if next_num_lives < past_num_lives: reward -= 500
-    
-    
-    
-    # past_pacman_x = obs[10]
-    # next_pacman_x = next_obs[10]
-    # past_pacman_y = obs[16]
-    # next_pacman_y = next_obs[16]
-    
-    # if past_pacman_x == next_pacman_x and past_pacman_y == next_pacman_y:
-    #     reward = 0
-    obs = [int(o) for o in obs]
-    next_obs = [int(o) for o in next_obs]
+    if next_num_lives < past_num_lives: return -500
+    elif reward >= 170: return -100
+    else:
+        reward = 0
+        # for dot_coord in dot_coordinates:
+        #     if abs(next_obs[10] - dot_coord[0]) < 2 and abs(next_obs[10] - dot_coord[0]) < 2:
+        #         reward += 10
     
     ghost_1_dist = math.sqrt((obs[10] - obs[6])**2 + (obs[16] - obs[12])**2)
     ghost_2_dist = math.sqrt((obs[10] - obs[7])**2 + (obs[16] - obs[13])**2)
@@ -126,7 +133,6 @@ def reward_fn(obs, next_obs, reward):
     ghost_4_dist = math.sqrt((next_obs[10] - next_obs[9])**2 + (next_obs[16] - next_obs[15])**2)
     new_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
     
-    reward += 1 # reward being alive
     if abs(new_min_ghost_dist - old_min_ghost_dist) < 50:
         reward += (new_min_ghost_dist - old_min_ghost_dist)
     return reward    

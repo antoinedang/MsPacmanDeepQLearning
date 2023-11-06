@@ -16,6 +16,7 @@ if __name__ == '__main__':
 
     seed = 0
     env.reset(seed=seed)
+    random.seed(seed)
     total_reward = 0
     state = None
     

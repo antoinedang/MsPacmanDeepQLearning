@@ -28,13 +28,15 @@ class RLAgent(nn.Module):
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
         
         self.input_size = input_size
-        self.p_random_action = p_random_action
         self.games_played = 0
         self.observed_state_actions = {}
+        
+        self.p_random_action = p_random_action
+        
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
-        self.max_cached_states = 60
-        self.time_between_state_caching = 60
+        self.max_cached_states_per_action = 100
+        self.time_between_state_caching = 30
         self.time_since_last_state_cache = self.time_between_state_caching
         
     def getAction(self, state):
@@ -45,7 +47,8 @@ class RLAgent(nn.Module):
         action_rewards = [-99999999,0,0,0,0]
         for action in [1,2,3,4]:
             state_tensor = torch.tensor(state, dtype=torch.float32)
-            action_tensor = torch.tensor([float(action-2)], dtype=torch.float32)
+            action_tensor = torch.tensor([0,0,0,0], dtype=torch.float32)
+            action_tensor[action-1] = 1.0
             input_tensor = torch.cat((state_tensor, action_tensor), dim=0).to(self.device)
             expected_reward = float(self.model(input_tensor).cpu()[0])
             #WEIGHT ACTION REWARDS BASED ON UNSEEN STATES
@@ -61,15 +64,37 @@ class RLAgent(nn.Module):
         max_q_action = max(action_rewards)
         return action_rewards.index(max_q_action), 0
     
+    def trainIteration(self):
+        num_states_in_buffer = len(self.observed_state_actions.get(1, [])) + len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, []))
+        batch = torch.zeros((num_states_in_buffer, self.input_size))
+        rewards = torch.zeros((num_states_in_buffer, 1))
+        num_states_added_to_batch = 0
+        for action in [1,2,3,4]:
+            for state, reward in self.observed_state_actions[action]:
+                state_tensor = torch.tensor(state)
+                action_tensor = torch.tensor([0,0,0,0])
+                action_tensor[action-1] = 1.0
+                input_tensor = torch.cat((state_tensor, action_tensor), dim=0)
+                batch[num_states_added_to_batch] = input_tensor
+                rewards[num_states_added_to_batch] = reward
+                num_states_added_to_batch += 1
+
+        batch = batch.to(self.device)
+        rewards = rewards.to(self.device)
+        
+        self.model.train()
+        self.optimizer.zero_grad()
+        outputs = self.model(batch)
+        loss = self.criterion(outputs, rewards)
+        loss.backward()
+        self.optimizer.step()
+                
+    
     def update(self, state, action, reward):        
         ## NORMALIZE STATE AND ACTION DATA
         state_copy = copy.deepcopy(state)
-        
-        
-        batch = torch.zeros((2*len(ghost_coordinates_combos), self.input_size))
-        
         ## ADD ALL COMBINATIONS OF SYMMETRY
-        for j in range(2):
+        for _ in range(2):
             state_copy[0] *= -1
             state[0] *= -1
             state_copy[1] *= -1
@@ -84,37 +109,27 @@ class RLAgent(nn.Module):
             if action == 2: action = 3
             elif action == 3: action = 2
             
-            action_tensor = torch.tensor([float(action)])
+            action_tensor = torch.tensor([0,0,0,0])
+            action_tensor[action-1] = 1.0
             
             for ghost_coordinates_combo in ghost_coordinates_combos:
                 for i in ghost_coordinates_combo:
                     state_copy[i] = state[i]
                     state_copy[i+4] = state[i+4]
-                state_tensor = torch.tensor(state_copy)
                 ## CACHE SEEN STATES
-                if self.explore_unseen_states:
-                    if self.time_since_last_state_cache < self.time_between_state_caching:
-                        self.time_since_last_state_cache += 1
-                    self.time_since_last_state_cache = 0
-                    try:
-                        self.observed_state_actions[action].append(state_copy)
-                        if len(self.observed_state_actions[action]) > self.max_cached_states:
-                            self.observed_state_actions[action].remove(random.randint(0,len(self.observed_state_actions[action])))
-                    except:
-                        self.observed_state_actions[action] = []
-                        self.observed_state_actions[action].append(state_copy)
-                batch[j*len(ghost_coordinates_combos) + i] = torch.cat((state_tensor, action_tensor), dim=0)
+                if self.time_since_last_state_cache < self.time_between_state_caching:
+                    self.time_since_last_state_cache += 1
+                self.time_since_last_state_cache = 0
+                try:
+                    self.observed_state_actions[action].append((state_copy, reward))
+                    if len(self.observed_state_actions[action]) > self.max_cached_states:
+                        self.observed_state_actions[action].remove(0)
+                except:
+                    self.observed_state_actions[action] = []
+                    self.observed_state_actions[action].append((state_copy, reward))
         
-        rewards = torch.tensor([float(reward)]*(2*len(ghost_coordinates_combos))).to(self.device)
-        batch = batch.to(self.device)
-        
-        self.model.train()
-        self.optimizer.zero_grad()
-        outputs = self.model(batch)
-        loss = self.criterion(outputs, rewards)
-        loss.backward()
-        self.optimizer.step()
+        self.train()
     
 
 def makeAgent():
-    return RLAgent(p_random_action=0.1, input_size=11, hidden_sizes=[128, 128], explore_unseen_states=True)
+    return RLAgent(p_random_action=0.05, input_size=14, hidden_sizes=[128, 128], explore_unseen_states=True)

@@ -22,6 +22,7 @@ if __name__ == '__main__':
         for param_group in agent.optimizer.param_groups:
             param_group['lr'] = 0.1
         env.reset(seed=random.randint(0, 10000))
+        random.seed(random.randint(0, 10000))
         obs = env.unwrapped.ale.getRAM()
         state = buildStateFromRAM(obs)
         score = 0
