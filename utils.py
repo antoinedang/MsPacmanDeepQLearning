@@ -65,18 +65,20 @@ def buildStateFromRAM(ram):
     player_x = ram[10]
     player_y = ram[16]
     
-    min_ghost_dist_down = 999999
+    min_ghost_dist_up = 999999
     min_ghost_dist_right = 999999
     min_ghost_dist_left = 999999
-    min_ghost_dist_up = 999999
+    min_ghost_dist_down = 999999
     
     for enemy_x, enemy_y in [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]:
-        min_ghost_dist_down = min(min_ghost_dist_down, findAStarDistanceInMap(player_x, player_y+1, enemy_x, enemy_y))
         min_ghost_dist_right = min(min_ghost_dist_right, findAStarDistanceInMap(player_x+1, player_y, enemy_x, enemy_y))
         min_ghost_dist_left = min(min_ghost_dist_left, findAStarDistanceInMap(player_x-1, player_y, enemy_x, enemy_y))
         min_ghost_dist_up = min(min_ghost_dist_up, findAStarDistanceInMap(player_x, player_y-1, enemy_x, enemy_y))
+        min_ghost_dist_down = min(min_ghost_dist_down, findAStarDistanceInMap(player_x, player_y+1, enemy_x, enemy_y))
+        
+    # num_edible_ghosts = ram[]
     
-    return [min_ghost_dist_down, min_ghost_dist_right, min_ghost_dist_left, min_ghost_dist_up]
+    return [min_ghost_dist_up, min_ghost_dist_right, min_ghost_dist_left, min_ghost_dist_down]
 
 def isAvailableAction(x,y,action):
     if action == 1: # up
@@ -88,23 +90,6 @@ def isAvailableAction(x,y,action):
     else: # down
         if state_matrix[x][y+1] == 0.0: return True
     return False
-        
-def reward_fn(obs, action_taken):    
-    prev_state = buildStateFromRAM(obs)
-    reward = obs[123]
-    
-    if reward >= 170: reward = -1
-    else: reward = 0
-    
-    if obs[10] == obs[100] and obs[16] == obs[100] or not isAvailableAction(obs[10], obs[16], action_taken): return 0 # ignore times when pacman does not move even though it did a valid action
-    
-    max_prev_state = 0
-    
-    for i in range(len(prev_state)):
-        if prev_state[i] == 0: continue
-        max_prev_state = max(max_prev_state, prev_state[i])
-    if action_taken-1 == prev_state.index(max_prev_state): return 1.0
-    else: return 0.0
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')

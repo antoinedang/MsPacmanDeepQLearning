@@ -35,9 +35,7 @@ def train(episodes):
             _, _, done, _, _ = env.step(action)
             next_obs = env.unwrapped.ale.getRAM()
             state = buildStateFromRAM(next_obs)
-            reward = reward_fn(obs, action)
-            # print("reward action", reward, action)
-            if reward != None: agent.update(state, action, reward)
+            agent.update(state, action, obs)
             if next_obs[123] < obs[123]:
                 lives_left -= 1
                 print("Epoch progress: {}%...                       ".format(100*(3*ep+(3-lives_left))/(3*episodes)), end='\r')

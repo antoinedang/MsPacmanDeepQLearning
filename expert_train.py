@@ -45,8 +45,7 @@ if __name__ == '__main__':
             score += real_reward
             next_obs = env.unwrapped.ale.getRAM()
             state = buildStateFromRAM(next_obs)
-            reward = reward_fn(obs, action)
-            if reward != None: agent.update(state, action, reward)
+            agent.update(state, action, obs)
             obs = next_obs
             if done:
                 print(score)

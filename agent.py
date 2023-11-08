@@ -32,7 +32,7 @@ class RLAgent(nn.Module):
         
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
-        self.max_cached_states_per_action = 1
+        self.max_cached_states_per_action = 32
         self.time_between_state_caching = 1
         self.random_action_repeat = 30
         self.time_since_last_state_cache = self.time_between_state_caching
@@ -49,54 +49,46 @@ class RLAgent(nn.Module):
             for action in [1,2,3,4]:
                 try:
                     closest_seen_state_dist = min([stateDistance(s,state) for s in self.observed_state_actions[action]])
-                    closest_seen_state_dist = 1 if closest_seen_state_dist < self.threshold_close_state else closest_seen_state_dist
-                    expected_rewards[action-1] = expected_rewards[action-1] * (1/closest_seen_state_dist) + 10000000 * (1.0 - (1/closest_seen_state_dist))
+                    if closest_seen_state_dist > self.threshold_close_state: return action
                 except:
                     pass
-        
-        opt_action = (torch.argmax(expected_rewards).item())+1
-            
-        return opt_action, 0
+        return np.random.choice([1,2,3,4], p=expected_rewards.detach().numpy()), 0
     
     def trainIteration(self):
         num_states_in_buffer = len(self.observed_state_actions.get(1, [])) + len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, []))
         batch = torch.zeros((num_states_in_buffer, self.input_size))
-        rewards = []
         num_states_added_to_batch = 0
         for action in [1,2,3,4]:
-            for state, reward in self.observed_state_actions.get(action, []):
-                state_tensor = torch.tensor(state, dtype=torch.float32)
-                batch[num_states_added_to_batch] = state_tensor
-                rewards.append((action-1, reward))
+            for state in self.observed_state_actions.get(action, []):
+                batch[num_states_added_to_batch] = state
                 num_states_added_to_batch += 1
 
         batch = batch.to(self.device)
+        true_rewards = nn.Softmax(dim=1)(batch)
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(batch)
-        rewards_tensor = torch.clone(outputs)
-        for i in range(num_states_added_to_batch): rewards_tensor[i][rewards[i][0]] = float(rewards[i][1])
-        loss = self.criterion(outputs, rewards_tensor)
+        loss = self.criterion(outputs, true_rewards)
         # print("loss", loss)
         loss.backward()
         self.optimizer.step()
                 
-    def update(self, state, action, reward):        
-        ## NORMALIZE STATE AND ACTION DATA
-        if self.time_since_last_state_cache < self.time_between_state_caching and abs(reward) < 0.5: # don't skip caches on very heavily penalized states
+    def update(self, state, action, prev_obs):        
+        ## SKIP CACHING EVERY X FRAMES
+        if self.time_since_last_state_cache < self.time_between_state_caching and abs(int(prev_obs[123])) < 5: # don't skip caches on very heavily penalized states
             self.time_since_last_state_cache += 1
             self.trainIteration()
             return
         self.time_since_last_state_cache = 0
         ## CACHE SEEN STATES
         try:
-            self.observed_state_actions[action].append((state, reward))
+            self.observed_state_actions[action].append(torch.tensor(state, dtype=torch.float32))
             if len(self.observed_state_actions[action]) > self.max_cached_states_per_action:
                 # self.observed_state_actions[action].pop(random.randint(0,len(self.observed_state_actions[action])-16))
                 self.observed_state_actions[action].pop(0)
         except:
             self.observed_state_actions[action] = []
-            self.observed_state_actions[action].append((state, reward))
+            self.observed_state_actions[action].append(torch.tensor(state, dtype=torch.float32))
         
         self.trainIteration()
 
