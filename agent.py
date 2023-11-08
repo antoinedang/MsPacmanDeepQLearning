@@ -52,7 +52,14 @@ class RLAgent(nn.Module):
                     if closest_seen_state_dist > self.threshold_close_state: return action
                 except:
                     pass
-        return np.random.choice([1,2,3,4], p=expected_rewards.detach().numpy()), 0
+        
+        if (torch.max(expected_rewards) < 0.7):
+            opt_action = np.random.choice([1,2,3,4], p=expected_rewards.detach().numpy())
+        else:
+            opt_action = int(torch.argmax(expected_rewards).item())
+        
+        
+        return opt_action, 0
     
     def trainIteration(self):
         num_states_in_buffer = len(self.observed_state_actions.get(1, [])) + len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, []))
@@ -63,8 +70,12 @@ class RLAgent(nn.Module):
                 batch[num_states_added_to_batch] = state
                 num_states_added_to_batch += 1
 
+
         batch = batch.to(self.device)
         true_rewards = nn.Softmax(dim=1)(batch)
+        print()
+        print(batch[-1])
+        print(true_rewards[-1])
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(batch)

@@ -80,17 +80,6 @@ def buildStateFromRAM(ram):
     
     return [min_ghost_dist_up, min_ghost_dist_right, min_ghost_dist_left, min_ghost_dist_down]
 
-def isAvailableAction(x,y,action):
-    if action == 1: # up
-        if state_matrix[x][y-1] == 0.0: return True
-    elif action == 2: # right
-        if state_matrix[x+1][y] == 0.0: return True
-    elif action == 3: # left
-        if state_matrix[x-1][y] == 0.0: return True
-    else: # down
-        if state_matrix[x][y+1] == 0.0: return True
-    return False
-
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
 
