@@ -36,7 +36,7 @@ class RLAgent(nn.Module):
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
         self.max_cached_states_per_action = 16
-        self.time_between_state_caching = 16
+        self.time_between_state_caching = 1
         self.random_action_repeat = 30
         self.time_since_last_state_cache = self.time_between_state_caching
         
@@ -45,15 +45,6 @@ class RLAgent(nn.Module):
         if random.random() < self.p_random_action:
             return random.randint(1,4), self.random_action_repeat
         #NORMAL ACTION        
-        reversed_state = False
-        if state[8] < 0:
-            reversed_state = True
-            state[8] = 1 - state[8]
-            state[0] *= -1
-            state[1] *= -1
-            state[2] *= -1
-            state[3] *= -1
-    
         state_tensor = torch.tensor(state, dtype=torch.float32).to(self.device)
         expected_rewards = self.model(state_tensor).cpu()
         #WEIGHT ACTION REWARDS BASED ON UNSEEN STATES
@@ -67,15 +58,6 @@ class RLAgent(nn.Module):
                     pass
         
         opt_action = (torch.argmax(expected_rewards).item())+1
-                
-        if reversed_state:
-            state[8] = 1 - state[8]
-            state[0] *= -1
-            state[1] *= -1
-            state[2] *= -1
-            state[3] *= -1
-            if opt_action == 2: opt_action = 3
-            elif opt_action == 3: opt_action = 2
             
         return opt_action, 0
     
@@ -104,44 +86,22 @@ class RLAgent(nn.Module):
                 
     def update(self, state, action, reward):        
         ## NORMALIZE STATE AND ACTION DATA
-        state_copy = copy.deepcopy(state)
         if self.time_since_last_state_cache < self.time_between_state_caching and abs(reward) < 0.5: # don't skip caches on very heavily penalized states
             self.time_since_last_state_cache += 1
             self.trainIteration()
             return
         self.time_since_last_state_cache = 0
-        ## ONLY CONSIDER THE LEFT HALF OF THE MAP (TO LESSEN STATE SPACE TO SEARCH)
-        if state[8] < 0:
-            state_copy[8] = 1 - state_copy[8]
-            state[8] = 1 - state[8]
-            state_copy[0] *= -1
-            state[0] *= -1
-            state_copy[1] *= -1
-            state[1] *= -1
-            state_copy[2] *= -1
-            state[2] *= -1
-            state_copy[3] *= -1
-            state[3] *= -1
-            
-            if action == 2: action = 3
-            elif action == 3: action = 2
-
-        for ghost_coordinates_combo in ghost_coordinates_combos:
-            for i in ghost_coordinates_combo:
-                state_copy[i] = state[i]
-                state_copy[i+4] = state[i+4]
-            ## CACHE SEEN STATES
-            try:
-                self.observed_state_actions[action].append((state_copy, reward))
-                if len(self.observed_state_actions[action]) > self.max_cached_states_per_action:
-                    # self.observed_state_actions[action].pop(random.randint(0,len(self.observed_state_actions[action])-16))
-                    self.observed_state_actions[action].pop(0)
-
-            except:
-                self.observed_state_actions[action] = []
-                self.observed_state_actions[action].append((state_copy, reward))
+        ## CACHE SEEN STATES
+        try:
+            self.observed_state_actions[action].append((state, reward))
+            if len(self.observed_state_actions[action]) > self.max_cached_states_per_action:
+                # self.observed_state_actions[action].pop(random.randint(0,len(self.observed_state_actions[action])-16))
+                self.observed_state_actions[action].pop(0)
+        except:
+            self.observed_state_actions[action] = []
+            self.observed_state_actions[action].append((state, reward))
         
         self.trainIteration()
 
 def makeAgent():
-    return RLAgent(p_random_action=2.0/60, input_size=10, hidden_sizes=[32, 32, 32], explore_unseen_states=False)
+    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8, 8], explore_unseen_states=False)
