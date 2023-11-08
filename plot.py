@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 from scipy.stats import linregress
-import time
 
 while True:
     scores = []

@@ -1,4 +1,3 @@
-import gym
 from agent import *
 import warnings
 from utils import *
@@ -24,6 +23,7 @@ def train(episodes):
         lives_left = 3
         while True:
             game_img = env.render()
+            # print(state)
             if next_is_random > 0:
                 next_is_random -= 1
                 game_img[-5:] += 255
@@ -35,7 +35,7 @@ def train(episodes):
             _, real_reward, done, _, _ = env.step(action)
             next_obs = env.unwrapped.ale.getRAM()
             state = buildStateFromRAM(next_obs)
-            reward = reward_fn(obs, next_obs, real_reward, action)
+            reward = reward_fn(obs, next_obs, state, real_reward, action)
             # print("reward action", reward, action)
             if reward != None: agent.update(state, action, reward)
             if next_obs[123] < obs[123]:

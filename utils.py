@@ -1,8 +1,8 @@
-from itertools import permutations
 import cv2
 import pickle
 import gym
-import math
+import numpy as np
+from astar.search import AStar
 
 ### FOR VISUALIZATION/DEBUGGING
 
@@ -42,12 +42,15 @@ def stateDistance(state1, state2):
         error += (state1[i]-state2[i])**2
     return error
 
-state_space = loadFromPickle("data/state_space.pkl")
+state_matrix = np.ones((210,210))
+for x,y in loadFromPickle("data/state_space.pkl"):
+    state_matrix[x][y] = 0.0
+state_astar = AStar(state_matrix)
 
 def findAStarDistanceInMap(x1,y1,x2,y2):
-    if not (x1,y1) in state_space: return 0
-    
-    pass
+    if state_matrix[x1][y1] == 1.0: return 0
+    if state_matrix[x2][y2] == 1.0: return 210
+    return len(state_astar.search((x1,y1), (x2,y2)))
     
 def buildStateFromRAM(ram):
     ram = [int(r) for r in ram]
@@ -77,18 +80,17 @@ def buildStateFromRAM(ram):
 
 def isAvailableAction(x,y,action):
     if action == 1: # up
-        if (x,y+1) in state_space: return True
+        if state_matrix[x][y-1] == 0.0: return True
     elif action == 2: # right
-        if (x+1,y) in state_space: return True
+        if state_matrix[x+1][y] == 0.0: return True
     elif action == 3: # left
-        if (x-1,y) in state_space: return True
+        if state_matrix[x-1][y] == 0.0: return True
     else: # down
-        if (x,y-1) in state_space: return True
+        if state_matrix[x][y+1] == 0.0: return True
     return False
         
-def reward_fn(obs, next_obs, reward, action_taken):    
+def reward_fn(obs, next_obs, next_state, reward, action_taken):    
     prev_state = buildStateFromRAM(obs)
-    next_state = buildStateFromRAM(next_obs)
     
     past_num_lives = obs[123]
     next_num_lives = next_obs[123]
@@ -98,10 +100,17 @@ def reward_fn(obs, next_obs, reward, action_taken):
     else: reward = 0
     
     if obs[10] == next_obs[10] and obs[16] == next_obs[16] and isAvailableAction(obs[10], obs[16], action_taken): return None # ignore times when pacman does not move even though it did a valid action
+    elif obs[10] == next_obs[10] and obs[16] == next_obs[16] and not isAvailableAction(obs[10], obs[16], action_taken): return -0.5 # punish running into walls
     
-    min_dist_change = min(next_state) - min(prev_state)
+    min_prev_state = 99999
     
-    return min_dist_change
+    for i in range(len(prev_state)):
+        if prev_state[i] == 0: continue
+        min_prev_state = min(min_prev_state, prev_state[i])
+    
+    dist_change = next_state[prev_state.index(min_prev_state)] - min_prev_state
+    
+    return dist_change
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')

@@ -1,13 +1,9 @@
 from itertools import permutations
-import numpy as np
 import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import copy
 from utils import *
-
-ghost_coordinates_combos = list(permutations([0,1,2,3]))
 
 class RLAgent(nn.Module):
     def __init__(self, p_random_action, input_size, hidden_sizes, explore_unseen_states):
@@ -35,7 +31,7 @@ class RLAgent(nn.Module):
         
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
-        self.max_cached_states_per_action = 16
+        self.max_cached_states_per_action = 1
         self.time_between_state_caching = 1
         self.random_action_repeat = 30
         self.time_since_last_state_cache = self.time_between_state_caching
@@ -104,4 +100,4 @@ class RLAgent(nn.Module):
         self.trainIteration()
 
 def makeAgent():
-    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8, 8], explore_unseen_states=False)
+    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8], explore_unseen_states=True)

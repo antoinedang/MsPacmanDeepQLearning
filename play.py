@@ -1,4 +1,3 @@
-import gym
 from agent import *
 import warnings
 import cv2
