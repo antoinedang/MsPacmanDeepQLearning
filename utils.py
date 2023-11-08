@@ -125,11 +125,11 @@ def reward_fn(obs, next_obs, reward, action_taken):
     past_num_lives = obs[123]
     next_num_lives = next_obs[123]
     
-    if next_num_lives < past_num_lives: return -1, action_taken
-    elif reward >= 170: return -1, action_taken
+    if next_num_lives < past_num_lives: return -1
+    elif reward >= 170: return -1
     else: reward = 0
     
-    if not isAvailableAction(obs[10], obs[16], action_taken): return -0.001 #penalize moving towards walls
+    if not isAvailableAction(obs[10], obs[16], action_taken): return -0.05 #penalize moving towards walls
     
     if obs[10] == next_obs[10] and obs[16] == next_obs[16] and isAvailableAction(obs[10], obs[16], action_taken): return None # ignore times when pacman does not move even though it did a valid action
     
@@ -145,15 +145,15 @@ def reward_fn(obs, next_obs, reward, action_taken):
     ghost_4_dist = math.sqrt((next_obs[10] - obs[9])**2 + (next_obs[16] - obs[15])**2)
     new_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
     
-    if new_min_ghost_dist == 0: return 0, action_taken
-    ghost_dist_reward = 0.5 * new_min_ghost_dist if (new_min_ghost_dist - old_min_ghost_dist) > 0 else -0.5 / new_min_ghost_dist
+    if new_min_ghost_dist == 0: return 0
+    ghost_dist_reward = 0.5 if (new_min_ghost_dist - old_min_ghost_dist) > 0 else -0.5
 
     # do not reward pacman for moving against the wall, even if the ghosts got further away
     # if moved_towards_wall: ghost_dist_reward = min(ghost_dist_reward, 0)
     
     reward += ghost_dist_reward
     
-    return reward, action_taken 
+    return reward 
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')

@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
     try:
-        agent = loadFromPickle("data/agent.pkl")
+        agent = loadFromPickle("data/checkpoints/agent.pkl")
     except:
         agent = makeAgent()
     
@@ -19,14 +19,11 @@ if __name__ == '__main__':
     agent.getAction = makeAgent().getAction
     agent.update = makeAgent().update
     agent.trainIteration = makeAgent().trainIteration
+    print(agent.games_played)
     
-    original_param_groups = agent.optimizer.param_groups
     env = makeEnvironment()
     while True:
-        agent.optimizer.param_groups = original_param_groups
-        saveToPickle("data/checkpoint/expert_agent.pkl", agent)
-        for param_group in agent.optimizer.param_groups:
-            param_group['lr'] = 0.1
+        saveToPickle("data/checkpoints/expert_agent.pkl", agent)
         env.reset(seed=random.randint(0, 10000))
         random.seed(random.randint(0, 10000))
         obs = env.unwrapped.ale.getRAM()

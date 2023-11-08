@@ -73,7 +73,7 @@ def generateGameplayVideos(num_games_played):
             if done:
                 break
         print("Recording progress: {}%...                       ".format((i+1)/3), end='\r')
-        out = cv2.VideoWriter("recordings/{}_games_played_vid_{}.mp4".format(num_games_played, i+1), cv2.VideoWriter_fourcc(*'mp4v'), 30.0, (game_img.shape[1], game_img.shape[0]))
+        out = cv2.VideoWriter("recordings/{}_games_played_vid_{}.mp4".format(num_games_played, i+1), cv2.VideoWriter_fourcc(*'mp4v'), 60.0, (game_img.shape[1], game_img.shape[0]))
         for frame in video:
             out.write(frame)
     env.close()
@@ -91,23 +91,20 @@ def evaluate(games):
     for ep in range(games):
         env.reset(seed=random.randint(0, 10000))
         random.seed(random.randint(0, 10000))
-        obs = env.unwrapped.ale.getRAM()
-        state = buildStateFromRAM(obs)
         lives_left = 3
         while True:
             if render_eval:
                 game_img = env.render()
                 cv2.imshow('MSPACMAN',scaleImage(game_img))
                 cv2.waitKey(1)
+            obs = env.unwrapped.ale.getRAM()
+            state = buildStateFromRAM(obs)
             action, _ = agent.getAction(state)
             _, real_reward, done, _, _ = env.step(action)
             total_reward += real_reward
-            next_obs = env.unwrapped.ale.getRAM()
-            state = buildStateFromRAM(next_obs)
-            if next_obs[123] < obs[123]:
+            if env.unwrapped.ale.getRAM()[123] < obs[123]:
                 lives_left -= 1
                 print("Evaluation progress: {}%...                       ".format(100*(3*ep+(3-lives_left))/(3*games)), end='\r')
-            obs = next_obs
             if done:
                 break
     log(total_reward/games, agent.games_played)
