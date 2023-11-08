@@ -18,6 +18,7 @@ class RLAgent(nn.Module):
                 layers.append(nn.Linear(hidden_sizes[i - 1], hidden_sizes[i]))
                 layers.append(nn.ReLU())
         layers.append(nn.Linear(hidden_sizes[-1], 4))
+        layers.append(nn.Softmax(dim=0))
         self.model =  nn.Sequential(*layers)  
         self.model.to(self.device)
         self.criterion = nn.MSELoss()
@@ -100,4 +101,4 @@ class RLAgent(nn.Module):
         self.trainIteration()
 
 def makeAgent():
-    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8], explore_unseen_states=True)
+    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8, 8], explore_unseen_states=True)

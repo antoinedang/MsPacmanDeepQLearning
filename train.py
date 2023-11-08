@@ -32,10 +32,10 @@ def train(episodes):
             if render_train:
                 cv2.imshow('MSPACMAN',scaleImage(game_img))
                 cv2.waitKey(1)
-            _, real_reward, done, _, _ = env.step(action)
+            _, _, done, _, _ = env.step(action)
             next_obs = env.unwrapped.ale.getRAM()
             state = buildStateFromRAM(next_obs)
-            reward = reward_fn(obs, next_obs, state, real_reward, action)
+            reward = reward_fn(obs, action)
             # print("reward action", reward, action)
             if reward != None: agent.update(state, action, reward)
             if next_obs[123] < obs[123]:

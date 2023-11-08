@@ -89,28 +89,22 @@ def isAvailableAction(x,y,action):
         if state_matrix[x][y+1] == 0.0: return True
     return False
         
-def reward_fn(obs, next_obs, next_state, reward, action_taken):    
+def reward_fn(obs, action_taken):    
     prev_state = buildStateFromRAM(obs)
+    reward = obs[123]
     
-    past_num_lives = obs[123]
-    next_num_lives = next_obs[123]
-    
-    if next_num_lives < past_num_lives: return -10
-    elif reward >= 170: return -10
+    if reward >= 170: reward = -1
     else: reward = 0
     
-    if obs[10] == next_obs[10] and obs[16] == next_obs[16] and isAvailableAction(obs[10], obs[16], action_taken): return None # ignore times when pacman does not move even though it did a valid action
-    elif obs[10] == next_obs[10] and obs[16] == next_obs[16] and not isAvailableAction(obs[10], obs[16], action_taken): return -0.5 # punish running into walls
+    if obs[10] == obs[100] and obs[16] == obs[100] or not isAvailableAction(obs[10], obs[16], action_taken): return 0 # ignore times when pacman does not move even though it did a valid action
     
-    min_prev_state = 99999
+    max_prev_state = 0
     
     for i in range(len(prev_state)):
         if prev_state[i] == 0: continue
-        min_prev_state = min(min_prev_state, prev_state[i])
-    
-    dist_change = next_state[prev_state.index(min_prev_state)] - min_prev_state
-    
-    return dist_change
+        max_prev_state = max(max_prev_state, prev_state[i])
+    if action_taken-1 == prev_state.index(max_prev_state): return 1.0
+    else: return 0.0
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
