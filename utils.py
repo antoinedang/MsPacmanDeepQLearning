@@ -1,6 +1,7 @@
 from itertools import permutations
 import cv2
 import pickle
+import gym
 import math
 
 ### FOR VISUALIZATION/DEBUGGING
@@ -85,41 +86,52 @@ def stateDistance(state1, state2):
 
     return ghost_dist_weight*ghost_angle_dist + pacman_dist_weight*pacman_dist
 
-dot_coordinates = loadFromPickle("data/dot_coordinates.pkl")
     
 def buildStateFromRAM(ram):
     ram = [int(r) for r in ram]
-    enemy_sue_x = ram[6]
-    enemy_inky_x = ram[7]
-    enemy_pinky_x = ram[8]
-    enemy_blinky_x = ram[9]
-    enemy_sue_y = ram[12] 
-    enemy_inky_y = ram[13] 
-    enemy_pinky_y = ram[14] 
-    enemy_blinky_y = ram[15]
-    player_x = ram[10]
-    player_y = ram[16]
+    enemy_sue_x = (ram[6] - 88) / 176
+    enemy_inky_x = (ram[7] - 88) / 176
+    enemy_pinky_x = (ram[8] - 88) / 176
+    enemy_blinky_x = (ram[9] - 88) / 176
+    enemy_sue_y = (74 - ram[12]) / 148
+    enemy_inky_y = (74 - ram[13]) / 148
+    enemy_pinky_y = (74 - ram[14]) / 148
+    enemy_blinky_y = (74 - ram[15]) / 148
+    player_x = (ram[10] - 88) / 176
+    player_y = (74 - ram[16]) / 148
     
     # fruit_x = ram[11]
     # fruit_y = ram[17]
     
     return [enemy_sue_x-player_x,enemy_inky_x-player_x,enemy_pinky_x-player_x,enemy_blinky_x-player_x,enemy_sue_y-player_y,enemy_inky_y-player_y,enemy_pinky_y-player_y,enemy_blinky_y-player_y,player_x,player_y]
+       
+state_space = loadFromPickle("data/state_space.pkl")
+
+def isAvailableAction(x,y,action):
+    if action == 1: # up
+        if (x,y+1) in state_space: return True
+    elif action == 2: # right
+        if (x+1,y) in state_space: return True
+    elif action == 3: # left
+        if (x-1,y) in state_space: return True
+    else: # down
+        if (x,y-1) in state_space: return True
+    return False
         
-        
-def reward_fn(obs, next_obs, reward):    
+def reward_fn(obs, next_obs, reward, action_taken):    
     obs = [int(o) for o in obs]
     next_obs = [int(o) for o in next_obs]
     
     past_num_lives = obs[123]
     next_num_lives = next_obs[123]
     
-    if next_num_lives < past_num_lives: return -500
-    elif reward >= 170: return -100
-    else:
-        reward = 0
-        # for dot_coord in dot_coordinates:
-        #     if abs(next_obs[10] - dot_coord[0]) < 2 and abs(next_obs[10] - dot_coord[0]) < 2:
-        #         reward += 10
+    if next_num_lives < past_num_lives: return -1, action_taken
+    elif reward >= 170: return -1, action_taken
+    else: reward = 0
+    
+    if not isAvailableAction(obs[10], obs[16], action_taken): return -0.001 #penalize moving towards walls
+    
+    if obs[10] == next_obs[10] and obs[16] == next_obs[16] and isAvailableAction(obs[10], obs[16], action_taken): return None # ignore times when pacman does not move even though it did a valid action
     
     ghost_1_dist = math.sqrt((obs[10] - obs[6])**2 + (obs[16] - obs[12])**2)
     ghost_2_dist = math.sqrt((obs[10] - obs[7])**2 + (obs[16] - obs[13])**2)
@@ -127,16 +139,24 @@ def reward_fn(obs, next_obs, reward):
     ghost_4_dist = math.sqrt((obs[10] - obs[9])**2 + (obs[16] - obs[15])**2)
     old_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
     
-    ghost_1_dist = math.sqrt((next_obs[10] - next_obs[6])**2 + (next_obs[16] - next_obs[12])**2)
-    ghost_2_dist = math.sqrt((next_obs[10] - next_obs[7])**2 + (next_obs[16] - next_obs[13])**2)
-    ghost_3_dist = math.sqrt((next_obs[10] - next_obs[8])**2 + (next_obs[16] - next_obs[14])**2)
-    ghost_4_dist = math.sqrt((next_obs[10] - next_obs[9])**2 + (next_obs[16] - next_obs[15])**2)
+    ghost_1_dist = math.sqrt((next_obs[10] - obs[6])**2 + (next_obs[16] - obs[12])**2)
+    ghost_2_dist = math.sqrt((next_obs[10] - obs[7])**2 + (next_obs[16] - obs[13])**2)
+    ghost_3_dist = math.sqrt((next_obs[10] - obs[8])**2 + (next_obs[16] - obs[14])**2)
+    ghost_4_dist = math.sqrt((next_obs[10] - obs[9])**2 + (next_obs[16] - obs[15])**2)
     new_min_ghost_dist = min(ghost_1_dist, ghost_2_dist, ghost_3_dist, ghost_4_dist)
     
-    if abs(new_min_ghost_dist - old_min_ghost_dist) < 50:
-        reward += (new_min_ghost_dist - old_min_ghost_dist)
-    return reward    
+    if new_min_ghost_dist == 0: return 0, action_taken
+    ghost_dist_reward = 0.5 * new_min_ghost_dist if (new_min_ghost_dist - old_min_ghost_dist) > 0 else -0.5 / new_min_ghost_dist
 
+    # do not reward pacman for moving against the wall, even if the ghosts got further away
+    # if moved_towards_wall: ghost_dist_reward = min(ghost_dist_reward, 0)
+    
+    reward += ghost_dist_reward
+    
+    return reward, action_taken 
+
+def makeEnvironment():
+    return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
 
 # EASY
 # 20. graph or table showing agent performance, either as a function of game score or game time (before death of game agent) as a function of RL time (e.g., number of games played)

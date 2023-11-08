@@ -69,7 +69,7 @@ if __name__ == '__main__':
     
         analyzeStateSpace("data/possible_coordinates.csv")
         
-        env = gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
+        env = makeEnvironment()
 
         obs = env.reset()
         total_reward = 0

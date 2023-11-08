@@ -8,11 +8,18 @@ from utils import *
 warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
-    env = gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
+    env = makeEnvironment()
     
-    agent = loadFromPickle("data/agent.pkl")
+    try:
+        agent = loadFromPickle("data/checkpoints/agent.pkl")
+    except:
+        agent = makeAgent()
+    
     agent.p_random_action = 0.0
     agent.explore_unseen_states = False
+    agent.getAction = makeAgent().getAction
+    agent.update = makeAgent().update
+    agent.trainIteration = makeAgent().trainIteration
 
     seed = 0
     env.reset(seed=seed)
@@ -23,6 +30,7 @@ if __name__ == '__main__':
     while True:
         cv2.imshow('',scaleImage(env.render()))
         cv2.waitKey(1)
+        
         
         state = buildStateFromRAM(env.unwrapped.ale.getRAM())
         action, _ = agent.getAction(state)
