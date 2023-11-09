@@ -3,6 +3,8 @@ import pickle
 import gym
 import numpy as np
 from astar.search import AStar
+import copy
+import math
 
 ### FOR VISUALIZATION/DEBUGGING
 
@@ -45,7 +47,27 @@ def stateDistance(state1, state2):
 state_matrix = np.ones((210,210))
 for x,y in loadFromPickle("data/state_space.pkl"):
     state_matrix[x][y] = 0.0
+for x,y in [(11,98), (10,98), (9,98), (172,98), (173,98), (174,98), (11,50), (10,50), (9,50), (172,50), (173,50), (174,50)]: # add tunnel entry points to coordinate space
+    state_matrix[x][y] = 0.0
 state_astar = AStar(state_matrix)
+
+def buildSafeStateMatrix(pacman_x, pacman_y, ghost_coords):
+    safe_state_matrix = copy.deepcopy(state_matrix) * 255
+    ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
+    pacman_dist_weight = 1.7
+    for x in range(len(state_matrix)):
+        for y in range(len(state_matrix[0])):
+            if state_matrix[x][y] == 1.0: continue
+            # if closer to any ghost than it is to pacman set to 1 (obstacle)
+            # dist_to_pacman = findAStarDistanceInMap(pacman_x, pacman_y, x, y)
+            dist_to_pacman = math.sqrt((pacman_x-x)**2 + (pacman_y-y)**2)
+            min_dist_to_ghost = 9999
+            for ghost_x, ghost_y in ghost_coords:
+                min_dist_to_ghost = min(min_dist_to_ghost, math.sqrt((ghost_x-x)**2 + (ghost_y-y)**2))
+                # min_dist_to_ghost = min(min_dist_to_ghost, findAStarDistanceInMap(ghost_x, ghost_y, x, y))
+            if min_dist_to_ghost*ghost_dist_weight <= dist_to_pacman*pacman_dist_weight: safe_state_matrix[x][y] = 255.0
+    safe_state_matrix[pacman_x][pacman_y] = 255.0
+    return np.uint8(safe_state_matrix)
 
 def findAStarDistanceInMap(x1,y1,x2,y2):
     if state_matrix[x1][y1] == 1.0: return 0
@@ -65,20 +87,33 @@ def buildStateFromRAM(ram):
     player_x = ram[10]
     player_y = ram[16]
     
-    min_ghost_dist_up = 999999
-    min_ghost_dist_right = 999999
-    min_ghost_dist_left = 999999
-    min_ghost_dist_down = 999999
+    safe_state_matrix = buildSafeStateMatrix(player_x, player_y, [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)])
     
-    for enemy_x, enemy_y in [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]:
-        min_ghost_dist_right = min(min_ghost_dist_right, findAStarDistanceInMap(player_x+1, player_y, enemy_x, enemy_y))
-        min_ghost_dist_left = min(min_ghost_dist_left, findAStarDistanceInMap(player_x-1, player_y, enemy_x, enemy_y))
-        min_ghost_dist_up = min(min_ghost_dist_up, findAStarDistanceInMap(player_x, player_y-1, enemy_x, enemy_y))
-        min_ghost_dist_down = min(min_ghost_dist_down, findAStarDistanceInMap(player_x, player_y+1, enemy_x, enemy_y))
+    if safe_state_matrix[player_x][player_y-1] == 255: available_space_up = 0
+    else:
+        up_safe_state_matrix = safe_state_matrix.copy()
+        cv2.floodFill(up_safe_state_matrix,None,(player_y-1,player_x),64)
+        available_space_up = np.count_nonzero(up_safe_state_matrix == 64)
         
-    # num_edible_ghosts = ram[]
+    if safe_state_matrix[player_x+1][player_y] == 255: available_space_right = 0
+    else:
+        right_safe_state_matrix = safe_state_matrix.copy()
+        cv2.floodFill(right_safe_state_matrix,None,(player_y,player_x+1),64)
+        available_space_right = np.count_nonzero(right_safe_state_matrix == 64)
+        
+    if safe_state_matrix[player_x-1][player_y] == 255: available_space_left = 0
+    else:
+        left_safe_state_matrix = safe_state_matrix.copy()
+        cv2.floodFill(left_safe_state_matrix,None,(player_y,player_x-1),64)
+        available_space_left = np.count_nonzero(left_safe_state_matrix == 64)
+        
+    if safe_state_matrix[player_x][player_y+1] == 255: available_space_down = 0
+    else:
+        down_safe_state_matrix = np.uint8(safe_state_matrix.copy())
+        cv2.floodFill(down_safe_state_matrix,None,(player_y+1, player_x),64)
+        available_space_down = np.count_nonzero(down_safe_state_matrix == 64)
     
-    return [min_ghost_dist_up, min_ghost_dist_right, min_ghost_dist_left, min_ghost_dist_down]
+    return [available_space_up, available_space_right, available_space_left, available_space_down]
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')

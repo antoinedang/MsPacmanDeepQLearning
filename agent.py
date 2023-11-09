@@ -73,9 +73,6 @@ class RLAgent(nn.Module):
 
         batch = batch.to(self.device)
         true_rewards = nn.Softmax(dim=1)(batch)
-        print()
-        print(batch[-1])
-        print(true_rewards[-1])
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(batch)

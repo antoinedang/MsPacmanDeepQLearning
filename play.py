@@ -32,7 +32,8 @@ if __name__ == '__main__':
         
         
         state = buildStateFromRAM(env.unwrapped.ale.getRAM())
-        action, _ = agent.getAction(state)
+        action = state.index(max(state))+1
+        # action, _ = agent.getAction(state)
         _, reward, done, _, info = env.step(action)
         total_reward += reward
         
