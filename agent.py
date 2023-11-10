@@ -19,7 +19,7 @@ class RLAgent(nn.Module):
                 layers.append(nn.ReLU())
         layers.append(nn.Linear(hidden_sizes[-1], 4))
         layers.append(nn.Softmax(dim=0))
-        self.model =  nn.Sequential(*layers)  
+        self.model = nn.Sequential(*layers)  
         self.model.to(self.device)
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
@@ -44,6 +44,7 @@ class RLAgent(nn.Module):
         #NORMAL ACTION        
         state_tensor = torch.tensor(state, dtype=torch.float32).to(self.device)
         expected_rewards = self.model(state_tensor).cpu()
+        print(state_tensor.cpu().detach().numpy(), state_tensor.cpu().detach().numpy())
         #WEIGHT ACTION REWARDS BASED ON UNSEEN STATES
         if self.explore_unseen_states:
             for action in [1,2,3,4]:

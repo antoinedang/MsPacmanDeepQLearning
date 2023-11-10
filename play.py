@@ -10,7 +10,7 @@ if __name__ == '__main__':
     env = makeEnvironment()
     
     try:
-        agent = loadFromPickle("data/checkpoints/agent.pkl")
+        agent = loadFromPickle("data/checkpoints/best_agent.pkl")
     except:
         agent = makeAgent()
     
@@ -31,7 +31,7 @@ if __name__ == '__main__':
         cv2.waitKey(1)
         
         
-        state = buildStateFromRAM(env.unwrapped.ale.getRAM())
+        state = buildStateFromRAM(env.unwrapped.ale.getRAM(), state)
         action = state.index(max(state))+1
         # action, _ = agent.getAction(state)
         _, reward, done, _, info = env.step(action)
