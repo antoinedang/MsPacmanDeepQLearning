@@ -6,6 +6,7 @@ import copy
 import networkx as nx
 from torch import nn
 import torch
+from ale_py import ALEInterface, SDL_SUPPORT
 
 ### FOR VISUALIZATION/DEBUGGING
 
@@ -157,7 +158,7 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     big_dot_val = 10
     momentum = 0.0
     
-    min_available_space_for_rewards = 200
+    min_available_space_for_rewards = 300
     
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)])
 
@@ -224,8 +225,12 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     shortest_path_lengths_from_pacman, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (player_x, player_y))
     direction_to_fruit = shortest_paths_from_pacman.get((fruit_x,fruit_y), [(-1,-1), (-1, -1)])[1]
     distance_to_fruit = shortest_path_lengths_from_pacman.get((fruit_x,fruit_y), np.inf)
-    
-    available_points_up = 0
+    print(True in [up_rewards, right_rewards, left_rewards, down_rewards])
+    if True in [up_rewards, right_rewards, left_rewards, down_rewards]: # if at least one path is "safe", then make decision solely on points to be gained
+        available_space_up = 0
+        available_space_right = 0
+        available_space_left = 0
+        available_space_down = 0
     
     if up_rewards:
         if (player_x, player_y-1) == direction_to_fruit and up_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_up += fruit_val / distance_to_fruit
@@ -290,8 +295,20 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     
     return state
 
-def makeEnvironment():
-    return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
+def makeEnvironment(render):
+    
+    ale = ALEInterface()
+
+    ale.setInt("random_seed", random.randint(0, 9999))
+
+    if SDL_SUPPORT:
+        ale.setBool("sound", False)
+        ale.setBool("display_screen", render)
+
+    ale.loadROM("data/MSPACMAN.BIN")
+    ale.reset_game()
+    
+    return ale
 
 # EASY
 # 20. graph or table showing agent performance, either as a function of game score or game time (before death of game agent) as a function of RL time (e.g., number of games played)

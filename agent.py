@@ -13,16 +13,14 @@ class RLAgent(nn.Module):
         for i in range(len(hidden_sizes)):
             if i == 0:
                 layers.append(nn.Linear(input_size, hidden_sizes[i]))
-                layers.append(nn.ReLU())
             else:
                 layers.append(nn.Linear(hidden_sizes[i - 1], hidden_sizes[i]))
-                layers.append(nn.ReLU())
         layers.append(nn.Linear(hidden_sizes[-1], 4))
         layers.append(nn.Softmax(dim=0))
         self.model = nn.Sequential(*layers)  
-        self.model.to(self.device)
+        self.model = self.model.to(self.device)
         self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
         
         self.input_size = input_size
         self.games_played = 0
@@ -40,40 +38,34 @@ class RLAgent(nn.Module):
     def getAction(self, state):
         #RANDOM ACTION
         if random.random() < self.p_random_action:
-            return random.randint(1,4), self.random_action_repeat
-        #NORMAL ACTION        
-        state_tensor = torch.tensor(state, dtype=torch.float32).to(self.device)
-        expected_rewards = self.model(state_tensor).cpu()
-        print(state_tensor.cpu().detach().numpy(), state_tensor.cpu().detach().numpy())
+            return random.randint(2,5), self.random_action_repeat
         #WEIGHT ACTION REWARDS BASED ON UNSEEN STATES
         if self.explore_unseen_states:
-            for action in [1,2,3,4]:
+            for action in [2,3,4,5]:
                 try:
                     closest_seen_state_dist = min([stateDistance(s,state) for s in self.observed_state_actions[action]])
                     if closest_seen_state_dist > self.threshold_close_state: return action
                 except:
                     pass
-        
-        if (torch.max(expected_rewards) < 0.7):
-            opt_action = np.random.choice([1,2,3,4], p=expected_rewards.detach().numpy())
-        else:
-            opt_action = int(torch.argmax(expected_rewards).item())
-        
+        #NORMAL ACTION        
+        state_tensor = torch.tensor(state, dtype=torch.float32).to(self.device)
+        expected_rewards = self.model(state_tensor).cpu()
+        opt_action = int(torch.argmax(expected_rewards).item())+2
         
         return opt_action, 0
     
     def trainIteration(self):
-        num_states_in_buffer = len(self.observed_state_actions.get(1, [])) + len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, []))
+        num_states_in_buffer = len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, [])) + len(self.observed_state_actions.get(5, []))
         batch = torch.zeros((num_states_in_buffer, self.input_size))
         num_states_added_to_batch = 0
-        for action in [1,2,3,4]:
+        for action in [2,3,4,5]:
             for state in self.observed_state_actions.get(action, []):
                 batch[num_states_added_to_batch] = state
                 num_states_added_to_batch += 1
 
 
         batch = batch.to(self.device)
-        true_rewards = nn.Softmax(dim=1)(batch)
+        true_rewards = batch.copy()
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(batch)
@@ -102,4 +94,4 @@ class RLAgent(nn.Module):
         self.trainIteration()
 
 def makeAgent():
-    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[8, 8], explore_unseen_states=True)
+    return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[4,4], explore_unseen_states=True)
