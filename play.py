@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     if SDL_SUPPORT:
         ale.setBool("sound", False)
-        ale.setBool("display_screen", False)
+        ale.setBool("display_screen", True)
 
     ale.loadROM("data/MSPACMAN.BIN")
     

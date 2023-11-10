@@ -3,8 +3,9 @@ import pickle
 import gym
 import numpy as np
 import copy
-import math
 import networkx as nx
+from torch import nn
+import torch
 
 ### FOR VISUALIZATION/DEBUGGING
 
@@ -36,26 +37,46 @@ def loadBoolFromFile(filename):
         else: renderRecording = False
     return renderTrain, renderEval, renderRecording
 
+def getCoordsInformation():
+    global dot_coords
+    global big_dot_coords
+    global unobtained_dot_coords
+    global unobtained_big_dot_coords
+    global state_matrix
+    global state_graph
+    global current_level
+    if current_level < 2: # level 1
+        possible_coords_img = 'data/possible_coords_level_1.png'
+        dot_coords_img = 'data/dot_coords_level_1.png'
+    else: # level 2
+        possible_coords_img = 'data/possible_coords_level_2.png'
+        dot_coords_img = 'data/dot_coords_level_2.png'
+        
+    state_matrix = np.ones((210,210))
+    state_img = cv2.imread(possible_coords_img)
+    for y in range(len(state_img)):
+        for x in range(len(state_img[0])):
+            if sum(state_img[y][x]) != 0: state_matrix[x][y] = 0.0
+    state_graph = nx.grid_2d_graph(210, 210)
+    walls = np.argwhere(state_matrix == 1)
+    for pixel in walls: state_graph.remove_node(tuple(pixel))
+    dot_coords = []
+    big_dot_coords = []
+    dots_img = cv2.imread(dot_coords_img)
+    for y in range(len(dots_img)):
+        for x in range(len(dots_img[0])):
+            if sum(dots_img[y][x]) > 0 and sum(dots_img[y][x]) == 255*3:
+                dot_coords.append((x,y))
+            elif sum(dots_img[y][x]) > 0:
+                big_dot_coords.append((x,y))
+    unobtained_dot_coords = copy.deepcopy(dot_coords)
+    unobtained_big_dot_coords = copy.deepcopy(big_dot_coords)
+
 ## GLOBAL VARIABLES
 
-state_matrix = np.ones((210,210))
-for x,y in loadFromPickle("data/state_space.pkl"):
-    state_matrix[x][y] = 0.0
-for x,y in [(11,98), (10,98), (9,98), (8,98), (7,98), (6,98), (5,98), (4,98), (3,98), (2,98), (1,98), (0,98),
-            (172,98), (173,98), (174,98), (175,98), (176,98), (177,98), (178,98), (179,98), (180,98), (181,98),
-            (11,50), (10,50), (9,50), (8,50), (7,50), (6,50), (5,50), (4,50), (3,50), (2,50), (1,50), (0,50),
-            (172,50), (173,50), (174,50), (175,50), (176,50), (177,50), (178,50), (179,50), (180,50), (181,50)]: # add tunnel entry points to coordinate space
-    state_matrix[x][y] = 0.0
-rows, cols = state_matrix.shape
-state_graph = nx.grid_2d_graph(rows, cols)
-# Remove wall pixels from the graph
-walls = np.argwhere(state_matrix == 1)
-for pixel in walls: state_graph.remove_node(tuple(pixel))
-
-dot_coords = loadFromPickle("data/dot_coordinates.pkl")
-big_dot_coords = [(18,12), (158,12), (18,142), (158,142)]
-unobtained_dot_coords = copy.deepcopy(dot_coords)
-unobtained_big_dot_coords = copy.deepcopy(big_dot_coords)
+current_level = 1
+last_num_dots_eaten = 0
+getCoordsInformation()
 
 ### FOR THE ACTUAL AGENT
 
@@ -75,27 +96,25 @@ def buildSafeStateMatrix(pacman_x, pacman_y, ghost_coords):
         djikstra_ghost_sources.add((ghost_x,ghost_y))
     shortest_path_lengths_from_enemies = nx.multi_source_dijkstra_path_length(state_graph, djikstra_ghost_sources)
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
-    ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
-    pacman_dist_weight = 1.7
-    max_dist_for_ghost_avoidance = 150
+    ghost_dist_weight = 1.4 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
+    pacman_dist_weight = 1.6
+    max_dist_for_ghost_avoidance = 2000
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
             # if closer to any ghost than it is to pacman set to 1 (obstacle)
             dist_to_pacman = shortest_path_lengths_from_pacman.get((x, y), float('inf'))
             min_dist_to_ghost = shortest_path_lengths_from_enemies.get((x, y), float('inf'))
-            # # dist_to_pacman = math.sqrt((pacman_x-x)**2 + (pacman_y-y)**2)
-            # min_dist_to_ghost = 9999
-            # for ghost_x, ghost_y in ghost_coords:
-                # min_dist_to_ghost = min(min_dist_to_ghost, math.sqrt((ghost_x-x)**2 + (ghost_y-y)**2))
             if min_dist_to_ghost > max_dist_for_ghost_avoidance: min_dist_to_ghost = 9999 # if min_dist_to_ghost above a certain threshold than it is free space!!
             if min_dist_to_ghost*ghost_dist_weight <= dist_to_pacman*pacman_dist_weight: safe_state_matrix[x][y] = 255.0
     safe_state_matrix[pacman_x][pacman_y] = 255.0
     return np.uint8(safe_state_matrix)
     
 def buildStateFromRAM(ram, prev_state=None):
+    global current_level
     global unobtained_dot_coords
     global unobtained_big_dot_coords
+    global last_num_dots_eaten
     ram = [int(r) for r in ram]
     enemy_sue_x = ram[6]
     enemy_inky_x = ram[7]
@@ -110,9 +129,10 @@ def buildStateFromRAM(ram, prev_state=None):
     fruit_x = ram[11]
     fruit_y = ram[17]
     
-    if ram[119] == 0:
-        unobtained_dot_coords = copy.deepcopy(dot_coords)
-        unobtained_big_dot_coords = copy.deepcopy(big_dot_coords)
+    if ram[119] == 0 and ram[119] != last_num_dots_eaten:
+        current_level += 0.5
+        getCoordsInformation()
+    last_num_dots_eaten = ram[119]
     
     dots_eaten = []
     for dot_x, dot_y in unobtained_dot_coords:
@@ -126,11 +146,16 @@ def buildStateFromRAM(ram, prev_state=None):
     for dot in dots_eaten: unobtained_dot_coords.remove(dot)
     for dot in big_dots_eaten: unobtained_big_dot_coords.remove(dot)
     
-    fruit_val = 10
-    dot_val = 5
-    big_dot_val = 2.5 #added to dot_val
+    fruit_val = 5
+    dot_val = 1
+    big_dot_val = 2
+    
+    min_available_space_for_rewards = 200
     
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)])
+
+    cv2.imshow('',safe_state_matrix.T)
+    cv2.waitKey(1)
 
     if safe_state_matrix[player_x][player_y-1] == 255: available_space_up = 0
     else:
@@ -155,58 +180,79 @@ def buildStateFromRAM(ram, prev_state=None):
         down_safe_state_matrix = np.uint8(safe_state_matrix.copy())
         cv2.floodFill(down_safe_state_matrix,None,(player_y+1, player_x),64)
         available_space_down = np.count_nonzero(down_safe_state_matrix == 64)
+        
+    up_rewards = False
+    right_rewards = False
+    left_rewards = False
+    down_rewards = False
+    if available_space_up > min_available_space_for_rewards:
+        up_rewards = True
+    if available_space_right > min_available_space_for_rewards:
+        right_rewards = True
+    if available_space_left > min_available_space_for_rewards:
+        left_rewards = True
+    if available_space_down > min_available_space_for_rewards:
+        down_rewards = True
     
-    _, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (player_x, player_y))
-    
+    shortest_path_lengths_from_pacman, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (player_x, player_y))
     direction_to_fruit = shortest_paths_from_pacman.get((fruit_x,fruit_y), [(-1,-1), (-1, -1)])[1]
+    distance_to_fruit = shortest_path_lengths_from_pacman.get((fruit_x,fruit_y), np.inf)
     
-    if available_space_up != 0:
-        if (player_x, player_y-1) == direction_to_fruit and up_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_up += fruit_val
+    
+    if up_rewards:
+        if (player_x, player_y-1) == direction_to_fruit and up_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_up += fruit_val / distance_to_fruit
             
-    if available_space_right != 0:
-        if (player_x+1, player_y) == direction_to_fruit and right_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_right += fruit_val
+    if right_rewards:
+        if (player_x+1, player_y) == direction_to_fruit and right_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_right += fruit_val / distance_to_fruit
         
-    if available_space_left != 0:
-        if (player_x-1, player_y) == direction_to_fruit and left_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_left += fruit_val
+    if left_rewards:
+        if (player_x-1, player_y) == direction_to_fruit and left_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_left += fruit_val / distance_to_fruit
         
-    if available_space_down != 0:
-        if (player_x, player_y+1) == direction_to_fruit and down_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_down += fruit_val   
+    if down_rewards:
+        if (player_x, player_y+1) == direction_to_fruit and down_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_down += fruit_val / distance_to_fruit
         
     for dot_x, dot_y in unobtained_dot_coords:
         
         direction_to_dot = shortest_paths_from_pacman.get((dot_x,dot_y), [(-1,-1), (-1, -1)])[1]
+        distance_to_dot = shortest_path_lengths_from_pacman.get((dot_x,dot_y), np.inf)
         
-        if available_space_up != 0:
-            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += dot_val
+        if up_rewards:
+            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += dot_val / distance_to_dot
                 
-        if available_space_right != 0:
-            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += dot_val
+        if right_rewards:
+            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += dot_val / distance_to_dot
             
-        if available_space_left != 0:
-            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += dot_val
+        if left_rewards:
+            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += dot_val / distance_to_dot
             
-        if available_space_down != 0:
-            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += dot_val   
+        if down_rewards:
+            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += dot_val / distance_to_dot
     
     for dot_x, dot_y in unobtained_big_dot_coords:
         
         direction_to_dot = shortest_paths_from_pacman.get((dot_x,dot_y), [(-1,-1), (-1, -1)])[1]
+        distance_to_dot = shortest_path_lengths_from_pacman.get((dot_x,dot_y), np.inf)
         
-        if available_space_up != 0:
-            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += big_dot_val
+        if up_rewards:
+            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += big_dot_val / distance_to_dot
                 
-        if available_space_right != 0:
-            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += big_dot_val
+        if right_rewards:
+            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += big_dot_val / distance_to_dot
             
-        if available_space_left != 0:
-            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += big_dot_val
+        if left_rewards:
+            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += big_dot_val / distance_to_dot
             
-        if available_space_down != 0:
-            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += big_dot_val   
+        if down_rewards:
+            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += big_dot_val / distance_to_dot
     
     
     momentum = 0.0
     if prev_state is None: prev_state = [available_space_up, available_space_right, available_space_left, available_space_down]
+    
+    print(available_space_up*(1-momentum) + momentum*prev_state[0],
+            available_space_right*(1-momentum) + momentum*prev_state[1],
+            available_space_left*(1-momentum) + momentum*prev_state[2],
+            available_space_down*(1-momentum) + momentum*prev_state[3])
     
     return [available_space_up*(1-momentum) + momentum*prev_state[0],
             available_space_right*(1-momentum) + momentum*prev_state[1],
