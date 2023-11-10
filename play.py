@@ -36,9 +36,10 @@ if __name__ == '__main__':
     ale.reset_game()
     total_reward = 0
     state = None
+    action = None
     
     while not ale.game_over():
-        state = buildStateFromRAM(ale.getRAM(), state)
+        state = buildStateFromRAM(ale.getRAM(), state, action)
         action = possible_actions[state.index(max(state))]
         # action, _ = agent.getAction(state)
         reward = ale.act(action)

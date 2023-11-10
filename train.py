@@ -19,6 +19,7 @@ def train(episodes):
         random.seed(random.randint(0, 10000))
         obs = env.unwrapped.ale.getRAM()
         state = buildStateFromRAM(obs)
+        action = None
         next_is_random = 0
         lives_left = 3
         while True:
@@ -34,7 +35,7 @@ def train(episodes):
                 cv2.waitKey(1)
             _, _, done, _, _ = env.step(action)
             next_obs = env.unwrapped.ale.getRAM()
-            state = buildStateFromRAM(next_obs, state)
+            state = buildStateFromRAM(next_obs, state, action)
             agent.update(state, action, obs)
             if next_obs[123] < obs[123]:
                 lives_left -= 1
@@ -57,6 +58,7 @@ def generateGameplayVideos(num_games_played):
         random.seed(random.randint(0, 10000))
         obs = env.unwrapped.ale.getRAM()
         state = buildStateFromRAM(obs)
+        action = None
         video = []
         while True:
             game_img = env.render()
@@ -66,7 +68,7 @@ def generateGameplayVideos(num_games_played):
                 cv2.waitKey(1)
             action, _ = agent.getAction(state)
             _, _, done, _, _ = env.step(action)
-            state = buildStateFromRAM(env.unwrapped.ale.getRAM(), state)
+            state = buildStateFromRAM(env.unwrapped.ale.getRAM(), state, action)
             obs = env.unwrapped.ale.getRAM()
             if done:
                 break
@@ -91,13 +93,14 @@ def evaluate(games):
         random.seed(random.randint(0, 10000))
         lives_left = 3
         state = None
+        action = None
         while True:
             if render_eval:
                 game_img = env.render()
                 cv2.imshow('MSPACMAN',scaleImage(game_img))
                 cv2.waitKey(1)
             obs = env.unwrapped.ale.getRAM()
-            state = buildStateFromRAM(obs, state)
+            state = buildStateFromRAM(obs, state, action)
             action, _ = agent.getAction(state)
             _, real_reward, done, _, _ = env.step(action)
             total_reward += real_reward

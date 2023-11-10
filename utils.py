@@ -45,10 +45,14 @@ def getCoordsInformation():
     global state_matrix
     global state_graph
     global current_level
+    global tunnel_coords
+    
     if current_level < 2: # level 1
+        tunnel_coords = [((12,50), (171,50)), ((12,98), (171,98))]
         possible_coords_img = 'data/possible_coords_level_1.png'
         dot_coords_img = 'data/dot_coords_level_1.png'
     else: # level 2
+        tunnel_coords = [((8,62), (167,62)), ((8,158), (167,158))]
         possible_coords_img = 'data/possible_coords_level_2.png'
         dot_coords_img = 'data/dot_coords_level_2.png'
         
@@ -60,6 +64,8 @@ def getCoordsInformation():
     state_graph = nx.grid_2d_graph(210, 210)
     walls = np.argwhere(state_matrix == 1)
     for pixel in walls: state_graph.remove_node(tuple(pixel))
+    for (tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y) in tunnel_coords:
+        state_graph.add_edge((tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y))
     dot_coords = []
     big_dot_coords = []
     dots_img = cv2.imread(dot_coords_img)
@@ -96,9 +102,9 @@ def buildSafeStateMatrix(pacman_x, pacman_y, ghost_coords):
         djikstra_ghost_sources.add((ghost_x,ghost_y))
     shortest_path_lengths_from_enemies = nx.multi_source_dijkstra_path_length(state_graph, djikstra_ghost_sources)
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
-    ghost_dist_weight = 1.4 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
-    pacman_dist_weight = 1.6
-    max_dist_for_ghost_avoidance = 2000
+    ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
+    pacman_dist_weight = 1.7
+    max_dist_for_ghost_avoidance = 150
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
@@ -110,7 +116,7 @@ def buildSafeStateMatrix(pacman_x, pacman_y, ghost_coords):
     safe_state_matrix[pacman_x][pacman_y] = 255.0
     return np.uint8(safe_state_matrix)
     
-def buildStateFromRAM(ram, prev_state=None):
+def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     global current_level
     global unobtained_dot_coords
     global unobtained_big_dot_coords
@@ -146,9 +152,10 @@ def buildStateFromRAM(ram, prev_state=None):
     for dot in dots_eaten: unobtained_dot_coords.remove(dot)
     for dot in big_dots_eaten: unobtained_big_dot_coords.remove(dot)
     
-    fruit_val = 5
-    dot_val = 1
-    big_dot_val = 2
+    fruit_val = 20
+    dot_val = 2
+    big_dot_val = 10
+    momentum = 0.0
     
     min_available_space_for_rewards = 200
     
@@ -161,24 +168,44 @@ def buildStateFromRAM(ram, prev_state=None):
     else:
         up_safe_state_matrix = safe_state_matrix.copy()
         cv2.floodFill(up_safe_state_matrix,None,(player_y-1,player_x),64)
+        for (tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y) in tunnel_coords:
+                if up_safe_state_matrix[tunnel_x][tunnel_y] == 64:
+                    cv2.floodFill(up_safe_state_matrix,None,(other_tunnel_y, other_tunnel_x),64)
+                elif up_safe_state_matrix[other_tunnel_x][other_tunnel_y] == 64:
+                    cv2.floodFill(up_safe_state_matrix,None,(tunnel_y, tunnel_x),64)
         available_space_up = np.count_nonzero(up_safe_state_matrix == 64)
 
     if safe_state_matrix[player_x+1][player_y] == 255: available_space_right = 0
     else:
         right_safe_state_matrix = safe_state_matrix.copy()
         cv2.floodFill(right_safe_state_matrix,None,(player_y,player_x+1),64)
+        for (tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y) in tunnel_coords:
+                if right_safe_state_matrix[tunnel_x][tunnel_y] == 64:
+                    cv2.floodFill(right_safe_state_matrix,None,(other_tunnel_y, other_tunnel_x),64)
+                elif right_safe_state_matrix[other_tunnel_x][other_tunnel_y] == 64:
+                    cv2.floodFill(right_safe_state_matrix,None,(tunnel_y, tunnel_x),64)
         available_space_right = np.count_nonzero(right_safe_state_matrix == 64)
         
     if safe_state_matrix[player_x-1][player_y] == 255: available_space_left = 0
     else:
         left_safe_state_matrix = safe_state_matrix.copy()
         cv2.floodFill(left_safe_state_matrix,None,(player_y,player_x-1),64)
+        for (tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y) in tunnel_coords:
+                if left_safe_state_matrix[tunnel_x][tunnel_y] == 64:
+                    cv2.floodFill(left_safe_state_matrix,None,(other_tunnel_y, other_tunnel_x),64)
+                elif left_safe_state_matrix[other_tunnel_x][other_tunnel_y] == 64:
+                    cv2.floodFill(left_safe_state_matrix,None,(tunnel_y, tunnel_x),64)
         available_space_left = np.count_nonzero(left_safe_state_matrix == 64)
         
     if safe_state_matrix[player_x][player_y+1] == 255: available_space_down = 0
     else:
         down_safe_state_matrix = np.uint8(safe_state_matrix.copy())
         cv2.floodFill(down_safe_state_matrix,None,(player_y+1, player_x),64)
+        for (tunnel_x, tunnel_y), (other_tunnel_x, other_tunnel_y) in tunnel_coords:
+                if down_safe_state_matrix[tunnel_x][tunnel_y] == 64:
+                    cv2.floodFill(down_safe_state_matrix,None,(other_tunnel_y, other_tunnel_x),64)
+                elif down_safe_state_matrix[other_tunnel_x][other_tunnel_y] == 64:
+                    cv2.floodFill(down_safe_state_matrix,None,(tunnel_y, tunnel_x),64)
         available_space_down = np.count_nonzero(down_safe_state_matrix == 64)
         
     up_rewards = False
@@ -198,6 +225,7 @@ def buildStateFromRAM(ram, prev_state=None):
     direction_to_fruit = shortest_paths_from_pacman.get((fruit_x,fruit_y), [(-1,-1), (-1, -1)])[1]
     distance_to_fruit = shortest_path_lengths_from_pacman.get((fruit_x,fruit_y), np.inf)
     
+    available_points_up = 0
     
     if up_rewards:
         if (player_x, player_y-1) == direction_to_fruit and up_safe_state_matrix[fruit_x][fruit_y] == 64: available_space_up += fruit_val / distance_to_fruit
@@ -245,19 +273,22 @@ def buildStateFromRAM(ram, prev_state=None):
         if down_rewards:
             if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += big_dot_val / distance_to_dot
     
-    
-    momentum = 0.0
     if prev_state is None: prev_state = [available_space_up, available_space_right, available_space_left, available_space_down]
     
-    print(available_space_up*(1-momentum) + momentum*prev_state[0],
-            available_space_right*(1-momentum) + momentum*prev_state[1],
-            available_space_left*(1-momentum) + momentum*prev_state[2],
-            available_space_down*(1-momentum) + momentum*prev_state[3])
-    
-    return [available_space_up*(1-momentum) + momentum*prev_state[0],
+    state = [available_space_up*(1-momentum) + momentum*prev_state[0],
             available_space_right*(1-momentum) + momentum*prev_state[1],
             available_space_left*(1-momentum) + momentum*prev_state[2],
             available_space_down*(1-momentum) + momentum*prev_state[3]]
+    
+    softmaxed_rewards = nn.Softmax(dim=0)(torch.tensor(state, dtype=torch.float32))
+    
+    if max(softmaxed_rewards).item() < 0.65: # if the pacman is having trouble deciding a direction
+        if prev_action == None:
+            prev_action = torch.argmax(softmaxed_rewards).item()
+        if softmaxed_rewards[prev_action-2] > 0.4:
+            state[prev_action-2] *= 2
+    
+    return state
 
 def makeEnvironment():
     return gym.make("ALE/MsPacman-v5", render_mode='rgb_array', full_action_space=False, frameskip=1, repeat_action_probability=0, obs_type='ram')
@@ -289,6 +320,3 @@ def makeEnvironment():
 # Action Representation: continue direction, turn left, turn right, turn around
 
 # Exploration Functions: random actions, high value for unexplored state/action pairs
-
-
-
