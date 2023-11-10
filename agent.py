@@ -65,11 +65,10 @@ class RLAgent(nn.Module):
 
 
         batch = batch.to(self.device)
-        true_rewards = batch.copy()
         self.model.train()
         self.optimizer.zero_grad()
         outputs = self.model(batch)
-        loss = self.criterion(outputs, true_rewards)
+        loss = self.criterion(outputs, batch)
         # print("loss", loss)
         loss.backward()
         self.optimizer.step()

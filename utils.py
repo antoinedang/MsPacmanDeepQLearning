@@ -1,6 +1,6 @@
 import cv2
 import pickle
-import gym
+import random
 import numpy as np
 import copy
 import networkx as nx
@@ -162,9 +162,6 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)])
 
-    cv2.imshow('',safe_state_matrix.T)
-    cv2.waitKey(1)
-
     if safe_state_matrix[player_x][player_y-1] == 255: available_space_up = 0
     else:
         up_safe_state_matrix = safe_state_matrix.copy()
@@ -225,7 +222,6 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     shortest_path_lengths_from_pacman, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (player_x, player_y))
     direction_to_fruit = shortest_paths_from_pacman.get((fruit_x,fruit_y), [(-1,-1), (-1, -1)])[1]
     distance_to_fruit = shortest_path_lengths_from_pacman.get((fruit_x,fruit_y), np.inf)
-    print(True in [up_rewards, right_rewards, left_rewards, down_rewards])
     if True in [up_rewards, right_rewards, left_rewards, down_rewards]: # if at least one path is "safe", then make decision solely on points to be gained
         available_space_up = 0
         available_space_right = 0
