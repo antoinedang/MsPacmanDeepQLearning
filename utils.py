@@ -127,8 +127,8 @@ def buildStateFromRAM(ram, prev_state=None):
     for dot in big_dots_eaten: unobtained_big_dot_coords.remove(dot)
     
     fruit_val = 10
-    dot_val = 2
-    big_dot_val = 2 #added to dot_val
+    dot_val = 5
+    big_dot_val = 2.5 #added to dot_val
     
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)])
 
@@ -177,32 +177,32 @@ def buildStateFromRAM(ram, prev_state=None):
         direction_to_dot = shortest_paths_from_pacman.get((dot_x,dot_y), [(-1,-1), (-1, -1)])[1]
         
         if available_space_up != 0:
-            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += fruit_val
+            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += dot_val
                 
         if available_space_right != 0:
-            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += fruit_val
+            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += dot_val
             
         if available_space_left != 0:
-            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += fruit_val
+            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += dot_val
             
         if available_space_down != 0:
-            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += fruit_val   
+            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += dot_val   
     
     for dot_x, dot_y in unobtained_big_dot_coords:
         
         direction_to_dot = shortest_paths_from_pacman.get((dot_x,dot_y), [(-1,-1), (-1, -1)])[1]
         
         if available_space_up != 0:
-            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += fruit_val
+            if (player_x, player_y-1) == direction_to_dot and up_safe_state_matrix[dot_x][dot_y] == 64: available_space_up += big_dot_val
                 
         if available_space_right != 0:
-            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += fruit_val
+            if (player_x+1, player_y) == direction_to_dot and right_safe_state_matrix[dot_x][dot_y] == 64: available_space_right += big_dot_val
             
         if available_space_left != 0:
-            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += fruit_val
+            if (player_x-1, player_y) == direction_to_dot and left_safe_state_matrix[dot_x][dot_y] == 64: available_space_left += big_dot_val
             
         if available_space_down != 0:
-            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += fruit_val   
+            if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += big_dot_val   
     
     
     momentum = 0.0

@@ -2,12 +2,12 @@ from agent import *
 import warnings
 import cv2
 from utils import *
+from ale_py import ALEInterface, SDL_SUPPORT
 
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 
 if __name__ == '__main__':
-    env = makeEnvironment()
     
     try:
         agent = loadFromPickle("data/checkpoints/best_agent.pkl")
@@ -19,26 +19,29 @@ if __name__ == '__main__':
     agent.getAction = makeAgent().getAction
     agent.update = makeAgent().update
     agent.trainIteration = makeAgent().trainIteration
+    
+    ale = ALEInterface()
+
+    ale.setInt("random_seed", random.randint(0, 9999))
+
+    if SDL_SUPPORT:
+        ale.setBool("sound", False)
+        ale.setBool("display_screen", False)
+
+    ale.loadROM("data/MSPACMAN.BIN")
+    
+    possible_actions = [2,3,4,5]
 
     seed = 0
-    env.reset(seed=seed)
-    random.seed(seed)
+    ale.reset_game()
     total_reward = 0
     state = None
     
-    while True:
-        cv2.imshow('',scaleImage(env.render()))
-        cv2.waitKey(1)
-        
-        
-        state = buildStateFromRAM(env.unwrapped.ale.getRAM(), state)
-        action = state.index(max(state))+1
+    while not ale.game_over():
+        state = buildStateFromRAM(ale.getRAM(), state)
+        action = possible_actions[state.index(max(state))]
         # action, _ = agent.getAction(state)
-        _, reward, done, _, info = env.step(action)
+        reward = ale.act(action)
         total_reward += reward
-        
-        if done:
-            break
 
     print("Total accumulated reward: {}".format(total_reward))
-    env.close()
