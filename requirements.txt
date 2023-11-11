@@ -1,0 +1,7 @@
+ale_py==0.8.1
+matplotlib==3.7.2
+networkx==3.0
+numpy==1.24.1
+opencv_python==4.8.0.76
+scipy==1.11.3
+torch==2.0.1+cu118

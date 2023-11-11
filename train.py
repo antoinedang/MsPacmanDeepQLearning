@@ -6,11 +6,13 @@ import random
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 
+#function to log to a CSV the score/games played of the pacman
 def log(score, games_played):
     # log to CSV file
     appendToFile("{},{}".format(score, games_played), "data/score_per_games_played.csv")
     pass
 
+# function to train the pacman agent for _ games
 def train(episodes):
     ale = makeEnvironment(render=render_train)
     print("Epoch progress: 0%                         ", end='\r')
@@ -37,6 +39,7 @@ def train(episodes):
             obs = next_obs
         agent.games_played += 1
 
+# function to evaluate the performance of the pacman without randomness/exploration for _ games
 def evaluate(games):
     p_random_action = agent.p_random_action
     explore_unseen_states = agent.explore_unseen_states
@@ -76,11 +79,10 @@ if __name__ == '__main__':
     agent.update = makeAgent().update
     agent.trainIteration = makeAgent().trainIteration
 
-    games_per_train = 10
-    n_evaluation_games = 3
+    games_per_train = 1 # for every training step play _ games
+    n_evaluation_games = 3 # for the evaluation play _ games
     
-    games_per_evaluation = 10
-    games_per_recording = 100
+    games_per_evaluation = 1 # every _ games do an evaluation of the pacmans score
     
     while True:
         render_train, render_eval, render_recordings = loadBoolFromFile("data/render_bools.txt")

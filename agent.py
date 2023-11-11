@@ -8,6 +8,8 @@ from utils import *
 class RLAgent(nn.Module):
     def __init__(self, p_random_action, input_size, hidden_sizes, explore_unseen_states):
         super().__init__()
+        
+        # CREATE MODEL FOR NEURAL NETWORK TO TRAIN
         layers = []
         self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         for i in range(len(hidden_sizes)):
@@ -22,12 +24,12 @@ class RLAgent(nn.Module):
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
         
+        
+        # SET CLASS ATTRIBUTES
         self.input_size = input_size
         self.games_played = 0
         self.observed_state_actions = {}
-        
         self.p_random_action = p_random_action
-        
         self.explore_unseen_states = explore_unseen_states
         self.threshold_close_state = 10
         self.max_cached_states_per_action = 32
@@ -35,6 +37,7 @@ class RLAgent(nn.Module):
         self.random_action_repeat = 30
         self.time_since_last_state_cache = self.time_between_state_caching
         
+    # returns the optimal (or exploration) action given a state
     def getAction(self, state):
         #RANDOM ACTION
         if random.random() < self.p_random_action:
@@ -53,7 +56,7 @@ class RLAgent(nn.Module):
         opt_action = int(torch.argmax(expected_rewards).item())+2
         
         return opt_action, 0
-    
+    # function to train on all state/action pairs
     def trainIteration(self):
         num_states_in_buffer = len(self.observed_state_actions.get(2, [])) + len(self.observed_state_actions.get(3, [])) + len(self.observed_state_actions.get(4, [])) + len(self.observed_state_actions.get(5, []))
         batch = torch.zeros((num_states_in_buffer, self.input_size))
@@ -72,7 +75,7 @@ class RLAgent(nn.Module):
         # print("loss", loss)
         loss.backward()
         self.optimizer.step()
-                
+    # function to cache + train on a new state/action pair
     def update(self, state, action, prev_obs):        
         ## SKIP CACHING EVERY X FRAMES
         if self.time_since_last_state_cache < self.time_between_state_caching and abs(int(prev_obs[123])) < 5: # don't skip caches on very heavily penalized states
@@ -92,5 +95,6 @@ class RLAgent(nn.Module):
         
         self.trainIteration()
 
+#utility function to create an instance of the agent class
 def makeAgent():
     return RLAgent(p_random_action=2.0/60, input_size=4, hidden_sizes=[4,4], explore_unseen_states=True)
