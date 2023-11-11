@@ -145,6 +145,8 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     if ram[119] == 0 and ram[119] != last_num_dots_eaten:
         current_level += 0.5
         getCoordsInformation()
+    if current_level > 1.5: #level 2
+        return [0,1,0,0]
     last_num_dots_eaten = ram[119]
     
     # keep track of which dots the pacman has and hasn't eaten
