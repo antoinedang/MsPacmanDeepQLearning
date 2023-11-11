@@ -88,5 +88,3 @@ if __name__ == '__main__':
         saveToPickle("data/checkpoints/agent_{}_games.pkl".format(agent.games_played), agent)
         if agent.games_played % games_per_evaluation == 0:
             evaluate(n_evaluation_games)
-        if agent.games_played % games_per_recording == 0:
-            generateGameplayVideos(agent.games_played)

@@ -5,7 +5,7 @@ while True:
     scores = []
     n_games_played = []
 
-    with open("data/score_per_games_played.csv", "r+") as f:
+    with open("data/score_per_games_played_agent_training.csv", "r+") as f:
         for line in f.readlines():
             if "," in line:
                 score, games_played = line.split(",")
