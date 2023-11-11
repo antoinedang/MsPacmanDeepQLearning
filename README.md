@@ -1,4 +1,4 @@
-To set up dependencies:
+To set up dependencies: <br>
     Install Python 3<br>
     Run `pip install -r requirements.txt`
 
