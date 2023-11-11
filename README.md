@@ -1,5 +1,5 @@
 To set up dependencies:
-    Install Python 3
+    Install Python 3<br>
     Run `pip install -r requirements.txt`
 
 
