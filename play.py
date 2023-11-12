@@ -12,7 +12,7 @@ if __name__ == '__main__':
         agent.p_random_action = 0.0
         agent.explore_unseen_states = False
         seed = random.randint(0, 9999)
-        ale = makeEnvironment(render=True, seed=seed)
+        ale = makeEnvironment(render=True, seed=3623) #3623 1330
         
         possible_actions = [2,3,4,5]
 

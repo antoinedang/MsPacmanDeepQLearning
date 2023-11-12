@@ -48,13 +48,18 @@ def getCoordsInformation():
     global state_graph
     global current_level
     global tunnel_coords
+    # global prev_ghost_coords
+    # global prev_prev_ghost_coords
+    
+    # prev_ghost_coords = None
+    # prev_prev_ghost_coords = None
     
     if current_level < 2: # level 1
         tunnel_coords = [((12,50), (171,50)), ((12,98), (171,98))]
         possible_coords_img = 'data/possible_coords_level_1.png'
         dot_coords_img = 'data/dot_coords_level_1.png'
     else: # level 2
-        tunnel_coords = [((8,62), (167,62)), ((8,158), (167,158))]
+        tunnel_coords = [((2,62), (173,62)), ((2,158), (173,158))]
         possible_coords_img = 'data/possible_coords_level_2.png'
         dot_coords_img = 'data/dot_coords_level_2.png'
         
@@ -125,6 +130,9 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     global unobtained_dot_coords
     global unobtained_big_dot_coords
     global last_num_dots_eaten
+    global state_graph
+    # global prev_ghost_coords
+    # global prev_prev_ghost_coords
     
     # extract important info from ram
     ram = [int(r) for r in ram]
@@ -145,9 +153,10 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     if ram[119] == 0 and ram[119] != last_num_dots_eaten:
         current_level += 0.5
         getCoordsInformation()
-    if current_level > 1.5: #level 2
-        return [0,1,0,0]
     last_num_dots_eaten = ram[119]
+    if current_level >= 2:
+        appendToFile("{},{}".format(player_x, player_y), "level_2_coords.csv")
+    if current_level > 2.5: return [0,1,0,0]
     
     # keep track of which dots the pacman has and hasn't eaten
     dots_eaten = []
@@ -172,30 +181,36 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     min_dist_for_rewards = 75
     min_dist_for_safety = 50
     
+    ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
     # initialize ghost coordinates for running of djikstra algorithm
     djikstra_ghost_sources = set()
-    for ghost_x, ghost_y in [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]:
+    for ghost_x, ghost_y in ghost_coords:
         if state_matrix[ghost_x][ghost_y] == 1.0:
             djikstra_ghost_sources.add((88,50))
             continue
         djikstra_ghost_sources.add((ghost_x,ghost_y))
+    
+    
+    # # remove graph node where ghosts were because they never turn around 180 degrees (only 90 or 0)
+    # state_graph_copy = copy.deepcopy(state_graph)
+    # if prev_prev_ghost_coords is not None:
+    #     for i in range(4):
+    #         if ghost_coords[i][0] != prev_prev_ghost_coords[i][0] or ghost_coords[i][1] != prev_prev_ghost_coords[i][1]:
+    #             # prev prev ghost coords are different from current ghost coords
+    #             prev_ghost_x, prev_ghost_y = prev_prev_ghost_coords[i]
+    #             if state_matrix[prev_ghost_x][prev_ghost_y] != 1.0 and (prev_ghost_x, prev_ghost_y) not in ghost_coords and (prev_ghost_x, prev_ghost_y) != (88,50):
+    #                 state_graph.remove_edge(ghost_coords[i], (prev_ghost_x, prev_ghost_y))
+            
+    # cycle prev ghost coords
+    # prev_prev_ghost_coords = prev_ghost_coords
+    # prev_ghost_coords = ghost_coords      
         
-    # TODO: improvement to be finished before competition
-    # prev_enemy_sue_x = ram[6]
-    # prev_enemy_inky_x = ram[7]
-    # prev_enemy_pinky_x = ram[8]
-    # prev_enemy_blinky_x = ram[9]
-    # prev_enemy_sue_y = ram[12]
-    # prev_enemy_inky_y = ram[13]
-    # prev_enemy_pinky_y = ram[14]
-    # prev_enemy_blinky_y = ram[15]
-    # prev_ghosts = [(prev_enemy_sue_x, prev_enemy_sue_y), (prev_enemy_inky_x, prev_enemy_inky_y), (prev_enemy_pinky_x, prev_enemy_pinky_y), (prev_enemy_blinky_x, prev_enemy_blinky_y)]
-    # for prev_ghost_x, prev_ghost_y in prev_ghosts:
-    #     if state_matrix[prev_ghost_x][prev_ghost_y] != 1.0:
-    #         state_graph.remove_node((prev_ghost_x, prev_ghost_y))
         
     # get matrix representing safe and unsafe grid coordinates
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, djikstra_ghost_sources)
+    # debugging
+    cv2.imshow('', safe_state_matrix.T)
+    cv2.waitKey(1)
 
     # for each direction, calculate how much free space can be accessed in that direction
     # up
@@ -329,7 +344,7 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
             prev_action = torch.argmax(softmaxed_rewards).item()
         if softmaxed_rewards[prev_action-2] > 0.4:
             state[prev_action-2] *= 2
-    
+    # state_graph = state_graph_copy
     return state
 
 # creates and returns an instantiation of the ALE pacman environment with appropriate parameters
@@ -342,7 +357,7 @@ def makeEnvironment(render, seed=None):
     ale.setInt("random_seed", seed)
 
     if SDL_SUPPORT:
-        ale.setBool("sound", False)
+        ale.setBool("sound", True)
         ale.setBool("display_screen", render)
 
     ale.loadROM("data/MSPACMAN.BIN")
