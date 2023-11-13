@@ -57,10 +57,14 @@ def getCoordsInformation():
         tunnel_coords = [((12,50), (171,50)), ((12,98), (171,98))]
         possible_coords_img = 'data/possible_coords_level_1.png'
         dot_coords_img = 'data/dot_coords_level_1.png'
-    else: # level 2
+    elif current_level < 3: # level 2
         tunnel_coords = [((2,62), (173,62)), ((2,158), (173,158))]
         possible_coords_img = 'data/possible_coords_level_2.png'
         dot_coords_img = 'data/dot_coords_level_2.png'
+    else: # level 3
+        tunnel_coords = [((0,98), (177,98))]
+        possible_coords_img = 'data/possible_coords_level_3.png'
+        dot_coords_img = 'data/dot_coords_level_3.png'
         
     state_matrix = np.ones((210,210))
     state_img = cv2.imread(possible_coords_img)
@@ -112,7 +116,7 @@ def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
     ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
     pacman_dist_weight = 1.7
-    max_dist_for_ghost_avoidance = 200
+    max_dist_for_ghost_avoidance = 150
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
@@ -165,7 +169,7 @@ def getGraphInformation(pacman_x, pacman_y, djikstra_ghost_sources):
             state_graph.add_edge(djikstra_ghost_sources[i], (djikstra_ghost_sources[i][0]-prev_ghost_direction[i][0], djikstra_ghost_sources[i][1]-prev_ghost_direction[i][1]))
         else:
             shortest_path_lengths_from_enemies.append(nx.single_source_dijkstra_path_length(state_graph, djikstra_ghost_sources[i]))
-    print(prev_ghost_direction[0])
+
     prev_ghost_coords = djikstra_ghost_sources
 
 def getShortestPathLengthToEnemy(x,y):
@@ -205,18 +209,18 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
         current_level += 0.5
         getCoordsInformation()
     last_num_dots_eaten = ram[119]
-    if current_level > 2.5:
+    if current_level >= 3:
         appendToFile("{},{}".format(player_x, player_y), "level_3_coords.csv")
-    if current_level > 2.5: return [random.randint(0,100), random.randint(0,100), random.randint(0,100), random.randint(0,100)]
+    if current_level >= 4: return [random.randint(0,100), random.randint(0,100), random.randint(0,100), random.randint(0,100)]
     
     # keep track of which dots the pacman has and hasn't eaten
     dots_eaten = []
     for dot_x, dot_y in unobtained_dot_coords:
-        if abs(player_x - dot_x) < 2 and abs(player_y - dot_y) < 2:
+        if player_x - dot_x == 0 and player_y - dot_y == 0:
             dots_eaten.append((dot_x,dot_y))
     big_dots_eaten = []
     for dot_x, dot_y in unobtained_big_dot_coords:
-        if abs(player_x - dot_x) < 2 and abs(player_y - dot_y) < 2:
+        if player_x - dot_x == 0 and player_y - dot_y == 0:
             big_dots_eaten.append((dot_x,dot_y))
     
     for dot in dots_eaten: unobtained_dot_coords.remove(dot)
@@ -229,7 +233,7 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     big_dot_val = 10
     momentum = 0.0
     # hyperparameters that define whether pacman is safe (far from ghosts) or in danger (close to ghosts)
-    min_dist_for_rewards = 75
+    min_dist_for_rewards = 85
     min_dist_for_safety = 50
     
     ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
