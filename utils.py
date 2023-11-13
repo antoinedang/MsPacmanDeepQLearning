@@ -116,7 +116,7 @@ def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
     ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
     pacman_dist_weight = 1.7
-    max_dist_for_ghost_avoidance = 150
+    max_dist_for_ghost_avoidance = 200
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
@@ -234,6 +234,7 @@ def buildStateFromRAM(ram, prev_action=None):
     # hyperparameters that define whether pacman is safe (far from ghosts) or in danger (close to ghosts)
     min_dist_for_rewards = 75
     min_dist_for_safety = 50
+    # 75 50 + 200, 85 60 + 150, 75 50 + 150, 
     
     ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
     # initialize ghost coordinates for running of djikstra algorithm
