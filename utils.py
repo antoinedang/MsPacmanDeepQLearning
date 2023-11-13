@@ -48,11 +48,10 @@ def getCoordsInformation():
     global state_graph
     global current_level
     global tunnel_coords
-    # global prev_ghost_coords
-    # global prev_prev_ghost_coords
-    
-    # prev_ghost_coords = None
-    # prev_prev_ghost_coords = None
+    global prev_ghost_coords
+    global prev_ghost_direction
+    prev_ghost_coords = None
+    prev_ghost_direction = [[0,0],[0,0],[0,0],[0,0]]
     
     if current_level < 2: # level 1
         tunnel_coords = [((12,50), (171,50)), ((12,98), (171,98))]
@@ -107,8 +106,9 @@ def stateDistance(state1, state2):
 
 # given the location of the ghosts and the pacman, creates and returns a numpy array representing which tiles are "safe" for the pacman and which are not (safe meaning the pacman is closer to the square than the ghost is)
 def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
-    shortest_path_lengths_from_pacman = nx.single_source_dijkstra_path_length(state_graph, (pacman_x, pacman_y))
-    shortest_path_lengths_from_enemies = nx.multi_source_dijkstra_path_length(state_graph, djikstra_ghost_sources)
+    getGraphInformation(pacman_x, pacman_y, djikstra_ghost_sources)
+    global shortest_path_lengths_from_pacman
+    global shortest_paths_from_pacman
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
     ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
     pacman_dist_weight = 1.7
@@ -118,11 +118,62 @@ def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
             if state_matrix[x][y] == 1.0: continue
             # if closer to any ghost than it is to pacman set to 1 (obstacle)
             dist_to_pacman = shortest_path_lengths_from_pacman.get((x, y), float('inf'))
-            min_dist_to_ghost = shortest_path_lengths_from_enemies.get((x, y), float('inf'))
+            min_dist_to_ghost = getShortestPathLengthToEnemy(x, y)
             if min_dist_to_ghost > max_dist_for_ghost_avoidance: min_dist_to_ghost = 9999 # if min_dist_to_ghost above a certain threshold than it is free space!!
             if min_dist_to_ghost*ghost_dist_weight <= dist_to_pacman*pacman_dist_weight: safe_state_matrix[x][y] = 255.0
     safe_state_matrix[pacman_x][pacman_y] = 255.0
     return np.uint8(safe_state_matrix)
+
+def getGraphInformation(pacman_x, pacman_y, djikstra_ghost_sources):
+    global shortest_path_lengths_from_pacman
+    global shortest_paths_from_pacman
+    global shortest_path_lengths_from_enemies
+    global prev_ghost_coords
+    global prev_ghost_direction
+    global state_matrix
+    
+    # GET PACMAN DISTANCES
+    shortest_path_lengths_from_pacman, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (pacman_x, pacman_y))
+    
+    # FOR ENEMIES, USE KNOWLEDGE THAT THEY CAN NEVER TURN AROUND 180 DEGREES
+    if prev_ghost_coords is None:    
+        prev_ghost_coords = djikstra_ghost_sources
+    
+    shortest_path_lengths_from_enemies = []    
+    
+    for i in range(4):
+        # UPDATE CACHED GHOST DIRECTION
+        dx = djikstra_ghost_sources[i][0] - prev_ghost_coords[i][0]
+        if abs(dx) > 1: dx = int(dx / abs(dx))
+        dy = djikstra_ghost_sources[i][1] - prev_ghost_coords[i][1]
+        if abs(dy) > 1: dy = int(dy / abs(dy))
+
+        if abs(dx) == 1 and abs(dy) == 1:
+            # decide which was the previous position (no diagonal movements)
+            if state_matrix[djikstra_ghost_sources[i][0]-dx][djikstra_ghost_sources[i][1]] == 0.0: 
+                dy = 0
+            else: 
+                dx = 0
+            prev_ghost_direction[i] = [dx,dy]
+        elif not (dx == 0 and dy == 0):
+            prev_ghost_direction[i] = [dx,dy]
+        
+        # UPDATE CLOSEST PATH LENGTHS FROM EACH ENEMY
+        if prev_ghost_direction[i][0] != 0 or prev_ghost_direction[i][1] != 0:
+            state_graph.remove_edge(djikstra_ghost_sources[i], (djikstra_ghost_sources[i][0]-prev_ghost_direction[i][0], djikstra_ghost_sources[i][1]-prev_ghost_direction[i][1]))
+            shortest_path_lengths_from_enemies.append(nx.single_source_dijkstra_path_length(state_graph, djikstra_ghost_sources[i]))
+            state_graph.add_edge(djikstra_ghost_sources[i], (djikstra_ghost_sources[i][0]-prev_ghost_direction[i][0], djikstra_ghost_sources[i][1]-prev_ghost_direction[i][1]))
+        else:
+            shortest_path_lengths_from_enemies.append(nx.single_source_dijkstra_path_length(state_graph, djikstra_ghost_sources[i]))
+    print(prev_ghost_direction[0])
+    prev_ghost_coords = djikstra_ghost_sources
+
+def getShortestPathLengthToEnemy(x,y):
+    global shortest_path_lengths_from_enemies
+    shortest_path_length = float('inf')
+    for path_lengths in shortest_path_lengths_from_enemies:
+        shortest_path_length = min(path_lengths.get((x, y), float('inf')), shortest_path_length)
+    return shortest_path_length
 
 # constructs the state representation of the game using the ram, previous state, and previous action (previous state and previous action only used for momentum/to avoid oscillation of the pacman when it is in between two identically rated states)    
 def buildStateFromRAM(ram, prev_state=None, prev_action=None):
@@ -131,8 +182,8 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     global unobtained_big_dot_coords
     global last_num_dots_eaten
     global state_graph
-    # global prev_ghost_coords
-    # global prev_prev_ghost_coords
+    global shortest_path_lengths_from_pacman
+    global shortest_paths_from_pacman
     
     # extract important info from ram
     ram = [int(r) for r in ram]
@@ -154,9 +205,9 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
         current_level += 0.5
         getCoordsInformation()
     last_num_dots_eaten = ram[119]
-    if current_level >= 2:
-        appendToFile("{},{}".format(player_x, player_y), "level_2_coords.csv")
-    if current_level > 2.5: return [0,1,0,0]
+    if current_level > 2.5:
+        appendToFile("{},{}".format(player_x, player_y), "level_3_coords.csv")
+    if current_level > 2.5: return [random.randint(0,100), random.randint(0,100), random.randint(0,100), random.randint(0,100)]
     
     # keep track of which dots the pacman has and hasn't eaten
     dots_eaten = []
@@ -183,28 +234,12 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     
     ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
     # initialize ghost coordinates for running of djikstra algorithm
-    djikstra_ghost_sources = set()
+    djikstra_ghost_sources = []
     for ghost_x, ghost_y in ghost_coords:
         if state_matrix[ghost_x][ghost_y] == 1.0:
-            djikstra_ghost_sources.add((88,50))
+            djikstra_ghost_sources.append((88,50))
             continue
-        djikstra_ghost_sources.add((ghost_x,ghost_y))
-    
-    
-    # # remove graph node where ghosts were because they never turn around 180 degrees (only 90 or 0)
-    # state_graph_copy = copy.deepcopy(state_graph)
-    # if prev_prev_ghost_coords is not None:
-    #     for i in range(4):
-    #         if ghost_coords[i][0] != prev_prev_ghost_coords[i][0] or ghost_coords[i][1] != prev_prev_ghost_coords[i][1]:
-    #             # prev prev ghost coords are different from current ghost coords
-    #             prev_ghost_x, prev_ghost_y = prev_prev_ghost_coords[i]
-    #             if state_matrix[prev_ghost_x][prev_ghost_y] != 1.0 and (prev_ghost_x, prev_ghost_y) not in ghost_coords and (prev_ghost_x, prev_ghost_y) != (88,50):
-    #                 state_graph.remove_edge(ghost_coords[i], (prev_ghost_x, prev_ghost_y))
-            
-    # cycle prev ghost coords
-    # prev_prev_ghost_coords = prev_ghost_coords
-    # prev_ghost_coords = ghost_coords      
-        
+        djikstra_ghost_sources.append((ghost_x,ghost_y))        
         
     # get matrix representing safe and unsafe grid coordinates
     safe_state_matrix = buildSafeStateMatrix(player_x, player_y, djikstra_ghost_sources)
@@ -260,8 +295,8 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
         available_space_down = np.count_nonzero(down_safe_state_matrix == 64)
         
     
-    shortest_path_lengths_from_enemies = nx.multi_source_dijkstra_path_length(state_graph, djikstra_ghost_sources)
-    min_dist_to_ghost = shortest_path_lengths_from_enemies.get((player_x, player_y), float('inf'))
+    
+    min_dist_to_ghost = getShortestPathLengthToEnemy(player_x, player_y)
     safe = min_dist_to_ghost > min_dist_for_rewards
     danger = min_dist_to_ghost < min_dist_for_safety
     
@@ -280,7 +315,6 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
         available_space_down = 0
     
     # calculate the shortest distance from every point in the map to pacman
-    shortest_path_lengths_from_pacman, shortest_paths_from_pacman = nx.single_source_dijkstra(state_graph, (player_x, player_y))
     # use this to find the direction of the shortest path to the fruit and the distance from the fruit from the pacman
     direction_to_fruit = shortest_paths_from_pacman.get((fruit_x,fruit_y), [(-1,-1), (-1, -1)])[1]
     distance_to_fruit = shortest_path_lengths_from_pacman.get((fruit_x,fruit_y), np.inf)
@@ -344,7 +378,6 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
             prev_action = torch.argmax(softmaxed_rewards).item()
         if softmaxed_rewards[prev_action-2] > 0.4:
             state[prev_action-2] *= 2
-    # state_graph = state_graph_copy
     return state
 
 # creates and returns an instantiation of the ALE pacman environment with appropriate parameters

@@ -1,18 +1,18 @@
 from utils import *
 
-possible_coords_img = 'data/possible_coords_level_2.png'
-dot_coords_img = 'data/dot_coords_level_2.png'
+possible_coords_img = 'data/possible_coords_level_3.png'
+dot_coords_img = 'data/dot_coords_level_3.png'
+state_img = cv2.imread(possible_coords_img)
+dots_img = cv2.imread(dot_coords_img)
 
 coords = []
 
-with open("level_2_coords.csv", 'r') as f:
+with open("level_3_coords.csv", 'r') as f:
     for line in f.readlines():
         x, y = line.split(",")
         coords.append((int(x), int(y)))
 
 
-state_img = cv2.imread(possible_coords_img)
-dots_img = cv2.imread(possible_coords_img)
 for y in range(len(state_img)):
     for x in range(len(state_img[0])):
         if (x,y) in coords and sum(state_img[y][x]) == 0:
