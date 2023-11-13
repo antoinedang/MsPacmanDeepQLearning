@@ -216,11 +216,11 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     # keep track of which dots the pacman has and hasn't eaten
     dots_eaten = []
     for dot_x, dot_y in unobtained_dot_coords:
-        if player_x - dot_x == 0 and player_y - dot_y == 0:
+        if abs(player_x - dot_x) < 2 and abs(player_y - dot_y) < 2:
             dots_eaten.append((dot_x,dot_y))
     big_dots_eaten = []
     for dot_x, dot_y in unobtained_big_dot_coords:
-        if player_x - dot_x == 0 and player_y - dot_y == 0:
+        if abs(player_x - dot_x) < 2 and abs(player_y - dot_y) < 2:
             big_dots_eaten.append((dot_x,dot_y))
     
     for dot in dots_eaten: unobtained_dot_coords.remove(dot)
@@ -234,7 +234,7 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     momentum = 0.0
     # hyperparameters that define whether pacman is safe (far from ghosts) or in danger (close to ghosts)
     min_dist_for_rewards = 85
-    min_dist_for_safety = 50
+    min_dist_for_safety = 60
     
     ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
     # initialize ghost coordinates for running of djikstra algorithm
@@ -312,11 +312,19 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     softmaxed_rewards = nn.Softmax(dim=0)(torch.tensor(state, dtype=torch.float32))
     
     # if state is ambiguous and pacman is not in danger or pacman is safe, reset scores, so the decision will be made solely on rewards to be had    
-    if safe or (not danger and max(softmaxed_rewards).item() < 0.65): # if pacman is "safe" and paths are not clearly better than each other, then make decision solely on points to be gained
+    if safe or (not danger and max(softmaxed_rewards).item() < 0.65): # if pacman is "safe" and/or paths are not clearly better than each other, then make decision solely on points to be gained
         available_space_up = 0
         available_space_right = 0
         available_space_left = 0
         available_space_down = 0
+        
+    
+    # WHEN IN DANGER *PUNISH* DOTS (SINCE THEY SLOW PACMAN DOWN)
+    
+    # PROBLEM WITH PACMAN BEHAVIOR: UNCERTAINTY BETWEEN TWO OPTIONS GETS IT KILLED
+    
+    # ADD WEIGHTS TO DJIKSTRAS TO INCORPORATE DOTS BEING SLOWER? (I.E pacman is slower to get there)!!!
+    
     
     # calculate the shortest distance from every point in the map to pacman
     # use this to find the direction of the shortest path to the fruit and the distance from the fruit from the pacman
