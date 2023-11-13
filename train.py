@@ -31,7 +31,7 @@ def train(episodes):
                 action, next_is_random = agent.getAction(state)
             _ = ale.act(action)
             next_obs = ale.getRAM()
-            state = buildStateFromRAM(next_obs, state, action)
+            state = buildStateFromRAM(next_obs, action)
             agent.update(state, action, obs)
             if next_obs[123] < obs[123]:
                 lives_left -= 1
@@ -56,7 +56,7 @@ def evaluate(games):
         action = None
         while not ale.game_over():
             obs = ale.getRAM()
-            state = buildStateFromRAM(obs, state, action)
+            state = buildStateFromRAM(obs, action)
             action, _ = agent.getAction(state)
             total_reward += ale.act(action)
             if ale.getRAM()[123] < obs[123]:

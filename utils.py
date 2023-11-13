@@ -116,7 +116,7 @@ def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
     ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
     pacman_dist_weight = 1.7
-    max_dist_for_ghost_avoidance = 150
+    max_dist_for_ghost_avoidance = 200
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
@@ -180,7 +180,7 @@ def getShortestPathLengthToEnemy(x,y):
     return shortest_path_length
 
 # constructs the state representation of the game using the ram, previous state, and previous action (previous state and previous action only used for momentum/to avoid oscillation of the pacman when it is in between two identically rated states)    
-def buildStateFromRAM(ram, prev_state=None, prev_action=None):
+def buildStateFromRAM(ram, prev_action=None):
     global current_level
     global unobtained_dot_coords
     global unobtained_big_dot_coords
@@ -231,10 +231,9 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     fruit_val = 20
     dot_val = 2
     big_dot_val = 10
-    momentum = 0.0
     # hyperparameters that define whether pacman is safe (far from ghosts) or in danger (close to ghosts)
-    min_dist_for_rewards = 85
-    min_dist_for_safety = 60
+    min_dist_for_rewards = 75
+    min_dist_for_safety = 50
     
     ghost_coords = [(enemy_sue_x, enemy_sue_y), (enemy_inky_x, enemy_inky_y), (enemy_pinky_x, enemy_pinky_y), (enemy_blinky_x, enemy_blinky_y)]
     # initialize ghost coordinates for running of djikstra algorithm
@@ -325,6 +324,9 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
     
     # ADD WEIGHTS TO DJIKSTRAS TO INCORPORATE DOTS BEING SLOWER? (I.E pacman is slower to get there)!!!
     
+    # FIND BETTER WAY OF CHECKING IF SCORE IS GOOD??? (CHECK IF REWARD CORRESPONDS TO DOT THAT WE THINK WE GOT/USE REWARD ONLY INSTEAD OF CHECKING)
+    
+    # REWARD NUMBER OF ESCAPE ROUTES OF SPACE VS. HOW MUCH ACTUAL SPACE THERE IS
     
     # calculate the shortest distance from every point in the map to pacman
     # use this to find the direction of the shortest path to the fruit and the distance from the fruit from the pacman
@@ -374,13 +376,10 @@ def buildStateFromRAM(ram, prev_state=None, prev_action=None):
             
             if (player_x, player_y+1) == direction_to_dot and down_safe_state_matrix[dot_x][dot_y] == 64: available_space_down += big_dot_val / distance_to_dot
     
-    if prev_state is None: prev_state = [available_space_up, available_space_right, available_space_left, available_space_down]
-    
-    # apply momentum to state
-    state = [available_space_up*(1-momentum) + momentum*prev_state[0],
-            available_space_right*(1-momentum) + momentum*prev_state[1],
-            available_space_left*(1-momentum) + momentum*prev_state[2],
-            available_space_down*(1-momentum) + momentum*prev_state[3]]
+    state = [available_space_up,
+        available_space_right,
+        available_space_left,
+        available_space_down]
     
     # use softmax to apply momentum to actions (i.e. if pacman was moving left and it is not sure where to go next, it should go left)
     softmaxed_rewards = nn.Softmax(dim=0)(torch.tensor(state, dtype=torch.float32))
@@ -402,7 +401,7 @@ def makeEnvironment(render, seed=None):
     ale.setInt("random_seed", seed)
 
     if SDL_SUPPORT:
-        ale.setBool("sound", True)
+        ale.setBool("sound", False)
         ale.setBool("display_screen", render)
 
     ale.loadROM("data/MSPACMAN.BIN")
