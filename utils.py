@@ -116,7 +116,7 @@ def buildSafeStateMatrix(pacman_x, pacman_y, djikstra_ghost_sources):
     safe_state_matrix = copy.deepcopy(state_matrix) * 255
     ghost_dist_weight = 1.3 # make boundary between ghost and pacman at 60% instead of 50% of distance between them
     pacman_dist_weight = 1.7
-    max_dist_for_ghost_avoidance = 200
+    max_dist_for_ghost_avoidance = 150
     for x in range(len(state_matrix)):
         for y in range(len(state_matrix[0])):
             if state_matrix[x][y] == 1.0: continue
